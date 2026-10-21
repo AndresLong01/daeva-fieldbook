@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, Menu, screen, globalShortcut } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
+const { writeFileSync, renameSync } = require('node:fs');
 const { spawn } = require('node:child_process');
 const { createInterface } = require('node:readline');
 const itemVariants = require('./capture/item-variants.json');
@@ -60,6 +61,14 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
   let alertPins = [];
   let appSettingsFile;
   let appSettings = { volume: 70, overlayShortcut: 'Control+Alt+O', goalShortcut: 'Control+Alt+G', goalFontSize: 100, timerFontSize: 100, noteFontSize: 100, overlayOpacity: 93, overlayGameOnly: true, colors: { background: '#15191d', text: '#e8e7df', accent: '#b8d99b', border: '#465056' } };
+  function saveAppSettings(next) {
+    // This small file is committed before another settings IPC or window close can run.
+    // Replace it atomically so an interrupted write leaves the last good settings intact.
+    const temporary = `${appSettingsFile}.tmp`;
+    writeFileSync(temporary, JSON.stringify(next), 'utf8');
+    renameSync(temporary, appSettingsFile);
+    appSettings = next;
+  }
   let overlaysVisible = true;
   let gameFocused = false;
   let focusWatcher;
@@ -498,14 +507,10 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     });
     ipcMain.handle('goal-select', (_event, itemId) => { if (goals.some(item => item.itemId === itemId)) selectedGoalId = itemId; return selectedGoalId; });
     ipcMain.handle('overlay-appearance-get', event => overlayAppearanceFor(event.sender));
-    ipcMain.handle('theme-set', async (event, colors, persist) => {
+    ipcMain.handle('theme-set', (event, colors) => {
       if (event.sender !== win?.webContents || !colors || !Object.keys(appSettings.colors).every(key => typeof colors[key] === 'string' && /^#[0-9a-f]{6}$/i.test(colors[key]))) throw new Error('Invalid theme colors');
       const palette = Object.fromEntries(Object.keys(appSettings.colors).map(key => [key, colors[key].toLowerCase()]));
-      if (persist === true) {
-        const next = { ...appSettings, colors: palette };
-        await fs.writeFile(appSettingsFile, JSON.stringify(next), 'utf8');
-        appSettings.colors = palette;
-      }
+      saveAppSettings({ ...appSettings, colors: palette });
       for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('theme-colors', palette);
       return palette;
     });
@@ -517,8 +522,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
         globalShortcut.unregister(previous.overlayShortcut); globalShortcut.unregister(previous.goalShortcut);
         if (!registerShortcuts(next)) { registerShortcuts(previous); throw new Error('Shortcut unavailable'); }
       }
-      appSettings = { volume: next.volume, overlayShortcut: next.overlayShortcut, goalShortcut: next.goalShortcut, goalFontSize: next.goalFontSize, timerFontSize: next.timerFontSize, noteFontSize: next.noteFontSize, overlayOpacity: next.overlayOpacity, overlayGameOnly: next.overlayGameOnly, colors: appSettings.colors };
-      await fs.writeFile(appSettingsFile, JSON.stringify(appSettings), 'utf8');
+      saveAppSettings({ volume: next.volume, overlayShortcut: next.overlayShortcut, goalShortcut: next.goalShortcut, goalFontSize: next.goalFontSize, timerFontSize: next.timerFontSize, noteFontSize: next.noteFontSize, overlayOpacity: next.overlayOpacity, overlayGameOnly: next.overlayGameOnly, colors: appSettings.colors });
       publishOverlayAppearance();
       applyOverlayVisibility(overlaysVisible);
       return { ...appSettings, overlaysVisible };

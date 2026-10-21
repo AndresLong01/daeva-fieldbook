@@ -1,15 +1,10 @@
-# Daeva Fieldbook 1.0.1
+# Daeva Fieldbook 1.0.2
 
-- Publishes the app through GitHub Releases so existing 1.0 installations can
-  download and install this version using the in-app update button.
+- Color changes now save as soon as a valid color is selected or typed, including
+  when the app closes before the color field loses focus.
+- Rapid color edits and overlay settings changes preserve the latest palette.
+- Settings files are replaced atomically, retaining the last saved preferences
+  if a disk write fails or is interrupted.
 
-- Gatherables now follow the selected map, with location counts for that region.
-- Compact category and Favorites tabs replace the category and region dropdowns.
-- Map headings show the region, resource category, and resource Locations title.
-- One-button updates appear beside the app title when a new release is available.
-- Includes gathering goals, boss and Abyss timer pins, note overlays, one-minute
-  alerts, Combat Utility colors, font and opacity controls, and overlay focus settings.
-- Overlay locks remain clickable through repeated unlock and relock cycles.
-
-Install 1.0 or later once to enable in-app updates for future releases. Your existing
-notes, goals, pins, and preferences are retained.
+Existing notes, goals, pins, and saved preferences are retained. Use Settings →
+Check for updates, then Download update beside the title to install this release.

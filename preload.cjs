@@ -34,7 +34,7 @@ contextBridge.exposeInMainWorld('desktop', {
   overlayContentMin: height => ipcRenderer.send('overlay-content-min', height),
   overlayAppearanceGet: () => ipcRenderer.invoke('overlay-appearance-get'),
   onOverlayAppearance: callback => ipcRenderer.on('overlay-appearance', (_event, appearance) => callback(appearance)),
-  themeSet: (colors, persist) => ipcRenderer.invoke('theme-set', colors, persist),
+  themeSet: colors => ipcRenderer.invoke('theme-set', colors),
   onThemeColors: callback => ipcRenderer.on('theme-colors', (_event, colors) => callback(colors)),
   settingsGet: () => ipcRenderer.invoke('settings-get'),
   settingsSet: settings => ipcRenderer.invoke('settings-set', settings),

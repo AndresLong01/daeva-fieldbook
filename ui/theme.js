@@ -1,6 +1,8 @@
 'use strict';
 const defaultThemeColors = Object.freeze({background:'#15191d',text:'#e8e7df',accent:'#b8d99b',border:'#465056'});
 let themeColors = {...defaultThemeColors};
+let pendingThemeSaves = 0;
+let themeSaveRevision = 0;
 function applyThemeColors(colors){
   if(!colors || !Object.keys(defaultThemeColors).every(key=>/^#[0-9a-f]{6}$/i.test(colors[key])))return;
   themeColors={...colors};
@@ -18,36 +20,37 @@ function applyThemeColors(colors){
   }
 }
 if(window.desktop?.settingsGet){
-  window.desktop.onThemeColors(applyThemeColors);
-  window.desktop.settingsGet().then(settings=>applyThemeColors(settings.colors)).catch(()=>{});
+  window.desktop.onThemeColors(colors=>{if(!pendingThemeSaves)applyThemeColors(colors);});
+  window.desktop.settingsGet().then(settings=>{if(!themeSaveRevision)applyThemeColors(settings.colors);}).catch(()=>{});
 }
 if(document.getElementById('reset-colors')){
-  let saveQueue=Promise.resolve();
-  function updateThemeColors(colors,persist){
+  function updateThemeColors(colors){
     applyThemeColors(colors);
-    document.getElementById('theme-status').textContent=persist?'Saving colors…':'Previewing colors…';
-    // Serialize picker previews and commits so a slow disk write cannot restore an older palette.
-    saveQueue=saveQueue.then(()=>window.desktop.themeSet(colors,persist)).then(()=>{
-      if(persist)document.getElementById('theme-status').textContent='Colors saved. Applied to the app and all overlays.';
-    }).catch(()=>{document.getElementById('theme-status').textContent='Could not save colors. Try again.';});
+    document.getElementById('theme-status').textContent='Saving colors…';
+    const revision=++themeSaveRevision;
+    pendingThemeSaves++;
+    // Send every valid edit immediately, even if the user closes before blur/change.
+    window.desktop.themeSet(colors).then(saved=>{
+      if(revision===themeSaveRevision){applyThemeColors(saved);document.getElementById('theme-status').textContent='Colors saved. Applied to the app and all overlays.';}
+    }).catch(()=>{if(revision===themeSaveRevision)document.getElementById('theme-status').textContent='Could not save colors. Try again.';}).finally(()=>{pendingThemeSaves--;});
   }
   for(const key of Object.keys(defaultThemeColors)){
     const picker=document.getElementById(`color-${key}`),hex=document.getElementById(`hex-${key}`);
-    picker.addEventListener('input',()=>updateThemeColors({...themeColors,[key]:picker.value},false));
-    picker.addEventListener('change',()=>updateThemeColors({...themeColors,[key]:picker.value},true));
+    picker.addEventListener('input',()=>updateThemeColors({...themeColors,[key]:picker.value}));
+    picker.addEventListener('change',()=>updateThemeColors({...themeColors,[key]:picker.value}));
     hex.addEventListener('input',()=>{
       const valid=/^#[0-9a-f]{6}$/i.test(hex.value);
       hex.setAttribute('aria-invalid',String(!valid));
-      if(valid)updateThemeColors({...themeColors,[key]:hex.value},false);
+      if(valid)updateThemeColors({...themeColors,[key]:hex.value});
     });
     hex.addEventListener('change',()=>{
-      if(/^#[0-9a-f]{6}$/i.test(hex.value)){updateThemeColors({...themeColors,[key]:hex.value},true);}
+      if(/^#[0-9a-f]{6}$/i.test(hex.value)){updateThemeColors({...themeColors,[key]:hex.value});}
       else{document.getElementById('theme-status').textContent='Enter a six-digit hex color, such as #b8d99b.';}
     });
     hex.addEventListener('keydown',event=>{if(event.key==='Enter')hex.blur();});
   }
   document.getElementById('reset-colors').addEventListener('click',()=>{
     for(const key of Object.keys(defaultThemeColors))document.getElementById(`hex-${key}`).removeAttribute('aria-invalid');
-    updateThemeColors({...defaultThemeColors},true);
+    updateThemeColors({...defaultThemeColors});
   });
 }
