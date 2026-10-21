@@ -64,8 +64,7 @@ function persist() {
   }
 }
 function switchTab(tab) {
-  $('gather-panel').hidden=tab!=='gather'; $('timers-panel').hidden=tab!=='timers'; $('abyss-panel').hidden=tab!=='abyss'; $('notes-panel').hidden=tab!=='notes'; $('settings-panel').hidden=tab!=='settings';
-  for(const name of ['gather','timers','abyss','notes','settings']) { const btn=$(name+'-tab');btn.classList.toggle('active',tab===name); if(tab===name)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current'); }
+  for(const name of ['gather','cubes','timers','abyss','notes','settings']) { $(name+'-panel').hidden=tab!==name;const btn=$(name+'-tab');btn.classList.toggle('active',tab===name); if(tab===name)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current'); }
 }
 function updateMapTransform() {
   $('map-world').setAttribute('transform',`translate(${mapX} ${mapY}) scale(${mapScale})`);

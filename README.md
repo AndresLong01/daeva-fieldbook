@@ -20,6 +20,10 @@ Downloading an update restarts the app automatically; checks alone never install
 - The selected map determines which gatherables and location counts are shown.
 - All, Plants, Minerals, Wood, Other, and Favorites tabs filter that map's list.
 - Maps and locations are bundled and work offline.
+- Hidden Cubes has 2,811 possible locations across Verteron and Altgard,
+  with searchable subregion checkboxes, per-area counts, and an Only shortcut.
+  Map choice and filters are saved separately from gathering. These are
+  candidate locations, not live spawn confirmations.
 - Boss reports use a community NA West Siel feed. Abyss and top-bar events use
   schedules; these are not live server spawn confirmations.
 - Gathering goals support separate item variants and an optional passive local

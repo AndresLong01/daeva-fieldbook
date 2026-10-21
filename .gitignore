@@ -22,5 +22,6 @@ qa*.cjs
 !qa-v100.cjs
 !qa-update-download.cjs
 !qa-theme-persistence.cjs
+!qa-cubes.cjs
 preview.cjs
 build-icon.py

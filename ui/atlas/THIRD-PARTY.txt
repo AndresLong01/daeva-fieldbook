@@ -48,3 +48,15 @@ https://github.com/MythosOfs/aion2-tracker
 
 AION 2 and its map artwork are associated with NCSOFT. This is an independent
 fan-made prototype and is not affiliated with or endorsed by NCSOFT.
+
+The Hidden Cubes tab bundles all 2,811 world-space cube locations from the
+same SkeeveAN/Aion-DPS-Meter gather.json client-data snapshot (MIT notice above):
+1,440 Verteron and 1,371 Altgard points. Their coordinates use the existing
+client map transform. Subregion names were assigned using the public IMapp
+map-area boundaries at https://interactivemap.app/aion2/maps/ and checked
+against its hidden-cube markers on October 21, 2026. Public map coordinates
+were aligned using 56 Verteron and 61 Altgard Kibelisks; maximum cube matching
+distance was 0.286 on the app's 1,000-unit map. Only names, identifiers, and
+point assignments are bundled; no map-site scripts or services run in the app.
+42 Verteron and 12 Altgard points outside the supplied polygons are retained
+under "Outside mapped subregions" instead of assigning an invented region.
