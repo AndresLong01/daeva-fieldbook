@@ -5,14 +5,14 @@ Overworld Bosses, Abyss schedules, notes, and movable game overlays.
 
 ## Install and update
 
-Install the latest Windows `.exe` from this repository's Releases page.
-Version 1.0 and later checks for new stable releases at startup and every four
+Install the latest Windows `.exe` from the [public download repository](https://github.com/AndresLong01/daeva-fieldbook-releases/releases).
+Version 1.0.1 and later checks for new stable releases at startup and every four
 hours. When a newer version exists, **Download update** appears beside the app
 title. One click downloads the update, verifies its published SHA-512 checksum,
 installs it, and restarts the app. Existing notes and preferences are preserved.
 Settings also provides **Check for updates**. No GitHub login is needed by users.
 
-People using a 0.x prototype must install 1.0 once to gain this update support.
+People using a 0.x prototype or 1.0.0 must install 1.0.1 once to use the public update address.
 Downloading an update restarts the app automatically; checks alone never install.
 
 ## Features
@@ -51,6 +51,14 @@ destination stable so existing installations can discover future versions.
 See the [electron-builder updater documentation](https://www.electron.build/v26/docs/features/auto-update/).
 
 ## Publish another release
+
+The source repository stays private. Create a public `AndresLong01/daeva-fieldbook-releases`
+repository initialized with a README. In this private repository, add an Actions
+secret named `FIELDBOOK_RELEASE_TOKEN`: a fine-grained GitHub token scoped only
+to the public download repository with Contents read/write permission. Keep the
+token on GitHub; never commit it. The workflow uploads installers and update
+metadata there, without pushing source code. Its automatically generated source
+archives contain only the public repository's README, not the app source.
 
 1. Make and test the changes. Update `RELEASE_NOTES.md`.
 2. Run `npm version patch` (or `minor` / `major`) to update the package version,

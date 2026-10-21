@@ -3,7 +3,7 @@ on:
   push:
     tags: ['v*']
 permissions:
-  contents: write
+  contents: read
 jobs:
   release:
     runs-on: windows-latest
@@ -24,10 +24,20 @@ jobs:
       - run: npm ci
       - run: npm run build:capture
       - run: npm run dist -- --config.directories.output=release
+      - name: Save installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+          if-no-files-found: error
       - name: Publish installer and updater metadata
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.FIELDBOOK_RELEASE_TOKEN }}
         run: |
+          if (-not $env:GH_TOKEN) { throw 'Add the FIELDBOOK_RELEASE_TOKEN Actions secret with Contents write access to AndresLong01/daeva-fieldbook-releases. Installer artifacts are available on this run.' }
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          gh release create "$env:GITHUB_REF_NAME" "release/Daeva-Fieldbook-Setup-$version.exe" "release/Daeva-Fieldbook-Setup-$version.exe.blockmap" "release/latest.yml" --verify-tag --title "Daeva Fieldbook $version" --notes-file RELEASE_NOTES.md
+          gh release create "$env:GITHUB_REF_NAME" "release/Daeva-Fieldbook-Setup-$version.exe" "release/Daeva-Fieldbook-Setup-$version.exe.blockmap" "release/latest.yml" --repo AndresLong01/daeva-fieldbook-releases --title "Daeva Fieldbook $version" --notes-file RELEASE_NOTES.md

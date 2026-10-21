@@ -18,7 +18,7 @@
     "appId": "app.daeva.fieldbook",
     "productName": "Daeva Fieldbook",
     "directories": {
-      "output": "../../outputs/Daeva-Fieldbook-1.0"
+      "output": "../../outputs/Daeva-Fieldbook-1.0.1"
     },
     "files": [
       "main.cjs",
@@ -57,7 +57,7 @@
       {
         "provider": "github",
         "owner": "AndresLong01",
-        "repo": "daeva-fieldbook",
+        "repo": "daeva-fieldbook-releases",
         "releaseType": "release"
       }
     ]
