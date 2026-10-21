@@ -1,4 +1,7 @@
-# Daeva Fieldbook 1.0
+# Daeva Fieldbook 1.0.1
+
+- Publishes the app through GitHub Releases so existing 1.0 installations can
+  download and install this version using the in-app update button.
 
 - Gatherables now follow the selected map, with location counts for that region.
 - Compact category and Favorites tabs replace the category and region dropdowns.
