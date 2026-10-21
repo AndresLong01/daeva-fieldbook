@@ -3,7 +3,7 @@ on:
   push:
     tags: ['v*']
 permissions:
-  contents: read
+  contents: write
 jobs:
   release:
     runs-on: windows-latest
@@ -36,8 +36,7 @@ jobs:
       - name: Publish installer and updater metadata
         shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.FIELDBOOK_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if (-not $env:GH_TOKEN) { throw 'Add the FIELDBOOK_RELEASE_TOKEN Actions secret with Contents write access to AndresLong01/daeva-fieldbook-releases. Installer artifacts are available on this run.' }
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          gh release create "$env:GITHUB_REF_NAME" "release/Daeva-Fieldbook-Setup-$version.exe" "release/Daeva-Fieldbook-Setup-$version.exe.blockmap" "release/latest.yml" --repo AndresLong01/daeva-fieldbook-releases --title "Daeva Fieldbook $version" --notes-file RELEASE_NOTES.md
+          gh release create "$env:GITHUB_REF_NAME" "release/Daeva-Fieldbook-Setup-$version.exe" "release/Daeva-Fieldbook-Setup-$version.exe.blockmap" "release/latest.yml" --verify-tag --title "Daeva Fieldbook $version" --notes-file RELEASE_NOTES.md

@@ -57,7 +57,7 @@
       {
         "provider": "github",
         "owner": "AndresLong01",
-        "repo": "daeva-fieldbook-releases",
+        "repo": "daeva-fieldbook",
         "releaseType": "release"
       }
     ]
