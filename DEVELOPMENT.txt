@@ -1,0 +1,112 @@
+DAEVA FIELDBOOK 1.0 — SOURCE NOTES
+
+Five Electron tabs: Gatherables, Overworld Bosses, Abyss, Notes, Settings. Maps, gathering
+locations, Abyss event locations, and notes are local. Only the field-boss
+tab makes a network request: read-only JSON from the community NA West Siel
+boss report feed. This app does not embed a website or external map.
+
+The top bar shows Shugo Festival (:00 hourly), Dimensional Invasion (:30
+hourly), and a Global-reported Spacetime Rift schedule (every three hours
+from 00:00 UTC). These are scheduled estimates, not live event state. Rift
+hours differ among community references; confirm the in-game map before
+traveling. Boss statuses use recent Siel player reports and can be missing or
+late. Each boss row and top-bar event has a pin button. Pins are stored as
+pinned-timers.json in Electron userData. The compact timer overlay can be
+resized from its lower-right grip. An optional checkbox gives events their
+own overlay. Positions and sizes are saved in timer-overlay-position.json and
+event-overlay-position.json. The split setting is saved in
+timer-overlay-settings.json. Each overlay timer has a one-minute sound alert
+button. Alert choices are saved beside the split setting. Clearing all timer
+pins closes both windows.
+
+Gathering goals live in userData as gather-goal.json. Their compact overlay
+is draggable and resizable, with bounds in goal-overlay-position.json.
+Ctrl+Alt+G manually adds one to the selected goal by default. The goal menu
+opens in the main app from the Field Index list button. It lists every
+map gatherable and item-variant checkbox from the bundled
+capture/item-variants.json catalog. Each checked variant gets its own named
+goal row and count. Older single-goal files migrate to variant rows; their
+existing count stays with the first selected variant because the original
+file did not record which variant contributed each item. The map toolbar and
+goal menu each offer one-click clearing of all goals.
+
+Pinned notes stay in the notebook's local data. The renderer sends their
+current title and body to a separate draggable, resizable note overlay. Its
+bounds are saved in note-overlay-position.json. Unpinning the last note closes
+that overlay. Note content is never sent over the network.
+
+Overlay minimum heights grow with their contents. Rows stretch when a window
+is resized taller; overflow scrollbars are hidden. Settings stores alert
+volume, separate font sizes for gathering, timer, and note overlays, shared
+overlay background opacity, and editable global shortcuts in
+app-settings.json. Ctrl+Alt+O shows or hides all overlays by default.
+Settings also has a sound test button. Font-size changes adjust each overlay's
+minimum dimensions and keep its window within the active display.
+
+By default, overlays are visible only while AION 2 owns the foreground window.
+Settings > Overlays can disable this restriction to keep them visible outside
+the game. The show/hide shortcut still overrides visibility in either mode.
+A bundled PowerShell watcher reads the Windows foreground process every 300 ms;
+with game-only mode enabled, the app hides overlays when focus leaves the
+game or the watcher stops. Each
+overlay has its own small lock button. Locking fixes its position and makes
+the overlay click-through. An icon-sized shaped window sits above its lock
+button so that a second click always unlocks it. Lock choices are stored in
+overlay-locks.json. Settings can unlock all overlays as a fallback.
+
+All toast notifications close automatically; note deletion offers Undo for a
+short time and each toast has an × button on hover. Timer windows grow as
+soon as an added pin raises their minimum height.
+
+The bundled goal-capture.exe is a self-contained .NET 8 passive Npcap reader.
+It discovers the active AION 2 TCP port by a repeated keepalive signature,
+including local ExitLag proxy ports, and parses inventory additions for the
+selected item IDs. One matching event increments the goal by one. A live Aria
+addition was verified on NA West Siel through ExitLag on October 21, 2026.
+Item acquisition outside gathering may also count. Npcap must be installed.
+The detector does not inject into the game or send packets. MIT-licensed
+reassembly and LZ4 code comes from SkeeveAN/Aion-DPS-Meter; license in capture/.
+
+Build with current Node.js on Windows:
+  npm ci
+  npm run build:capture
+  npm start
+  $env:NODE_OPTIONS='--experimental-require-module'  # needed with Node 22.11
+  npm run dist
+The x64 installer is written to ../../outputs/Daeva-Fieldbook-1.0.
+
+The Abyss tab uses fixed schedule values from Global client data and local
+time calculations. It has no live Abyss status API. Its initial server-clock
+offset is UTC+9; users can sync it to Siel's displayed in-game clock. The
+map image and event coordinates are bundled and work offline.
+
+The --fieldbook-profile=<absolute-path> argument selects an isolated local
+profile for QA. The installer is unsigned. AION 2 assets belong to NCSOFT;
+this is an independent fan prototype.
+
+Combat Utility styling is shared by the app, dialogs, and all overlays.
+Settings > Combat Utility / Colors edits background, text, accent, and border
+colors using pickers or six-digit hex values. Derived surface and text shades
+use CSS color-mix. Colors preview across open windows and save to the colors
+object in app-settings.json; Reset colors restores the default green palette.
+
+Abyss rows support timer pins, one-minute alerts, and clear-all. Their keys
+are abyss:<event-id> and their countdowns use the same local server-clock
+schedule as the Abyss tab. When events are separated, Abyss pins appear in
+the event overlay. These remain scheduled starts, not live server reports.
+
+The unlock control is reused across lock cycles and waits for did-stop-loading
+before showing. Native hit testing verifies it stays above its parent overlay
+through repeated locking and custom text sizing. The parent lock glyph remains
+visible while the separate clickable area initializes.
+
+The map selector is the source of truth for the gathering list. Categories
+and the Favorites tab only filter items on that map. Selected map is saved
+in localStorage. Known-location counts are scoped to that same region.
+
+Version 1.0 uses electron-updater with a GitHub Releases feed configured in
+package.json. It checks at launch and every four hours. It never downloads
+until the user clicks Download update. The click opts into download, SHA-512
+verification, silent install, and relaunch. Update errors leave the installed
+app unchanged and expose Retry update. Settings can manually check the feed.
+Release metadata and binary must be uploaded from the same build. See README.

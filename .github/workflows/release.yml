@@ -1,0 +1,33 @@
+name: Windows release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Validate release version
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag and package version must match.' }
+      - run: npm ci
+      - run: npm run build:capture
+      - run: npm run dist -- --config.directories.output=release
+      - name: Publish installer and updater metadata
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          gh release create "$env:GITHUB_REF_NAME" "release/Daeva-Fieldbook-Setup-$version.exe" "release/Daeva-Fieldbook-Setup-$version.exe.blockmap" "release/latest.yml" --verify-tag --title "Daeva Fieldbook $version" --notes-file RELEASE_NOTES.md

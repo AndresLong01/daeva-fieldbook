@@ -1,0 +1,23 @@
+{
+  "aria": [{"id":610670041,"name":"Aria"},{"id":610670045,"name":"Fresh Aria"}],
+  "asvata-log": [{"id":610650012,"name":"Asvata Log"},{"id":610650014,"name":"Fine Asvata Log"},{"id":610650016,"name":"Pure Asvata Log"},{"id":610650018,"name":"Radiant Asvata Log"}],
+  "azpha": [{"id":610670043,"name":"Azpha"},{"id":610670047,"name":"Fresh Azpha"}],
+  "calendula": [{"id":610670044,"name":"Calendula"},{"id":610670048,"name":"Fresh Calendula"}],
+  "conide": [{"id":610680053,"name":"Conide"}],
+  "coriolus": [{"id":610680043,"name":"Coriolus"}],
+  "cypri": [{"id":610680048,"name":"Cypri"}],
+  "diamond-gemstone": [{"id":610660026,"name":"Diamond Gemstone"},{"id":610660029,"name":"Fine Diamond Gemstone"},{"id":610660032,"name":"Pure Diamond Gemstone"},{"id":610660035,"name":"Radiant Diamond Gemstone"}],
+  "inina": [{"id":610680047,"name":"Inina"}],
+  "kukuru": [{"id":610680044,"name":"Kukuru"}],
+  "mela": [{"id":610680045,"name":"Mela"}],
+  "morfa": [{"id":610680049,"name":"Morfa"}],
+  "odyle": [{"id":610610013,"name":"Odyle"},{"id":610610014,"name":"Fine Odyle"},{"id":610610015,"name":"Pure Odyle"},{"id":610610016,"name":"Radiant Odyle"}],
+  "ohkra": [{"id":610680050,"name":"Ohkra"}],
+  "orichalcum-ore": [{"id":610620013,"name":"Orichalcum Ore"},{"id":610620014,"name":"Fine Orichalcum Ore"},{"id":610620015,"name":"Pure Orichalcum Ore"},{"id":610620016,"name":"Radiant Orichalcum Ore"}],
+  "pujery": [{"id":610680054,"name":"Pujery"}],
+  "raydam": [{"id":610680051,"name":"Raydam"}],
+  "ruby-gemstone": [{"id":610660027,"name":"Ruby Gemstone"},{"id":610660030,"name":"Fine Ruby Gemstone"},{"id":610660033,"name":"Pure Ruby Gemstone"},{"id":610660036,"name":"Radiant Ruby Gemstone"}],
+  "sapphire-gemstone": [{"id":610660025,"name":"Sapphire Gemstone"},{"id":610660028,"name":"Fine Sapphire Gemstone"},{"id":610660031,"name":"Pure Sapphire Gemstone"},{"id":610660034,"name":"Radiant Sapphire Gemstone"}],
+  "targena": [{"id":610670042,"name":"Targena"},{"id":610670046,"name":"Fresh Targena"}],
+  "yggdrasil-log": [{"id":610650011,"name":"Yggdrasil Log"},{"id":610650013,"name":"Fine Yggdrasil Log"},{"id":610650015,"name":"Pure Yggdrasil Log"},{"id":610650017,"name":"Radiant Yggdrasil Log"}]
+}

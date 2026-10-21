@@ -1,0 +1,9 @@
+.overlay-header-actions{display:flex;align-items:center;gap:5px;min-width:0}
+.overlay-lock-button{display:grid;place-items:center;flex:none;width:18px;height:18px;padding:0;border:1px solid transparent;border-radius:3px;background:transparent;color:#a8c69a;cursor:pointer;-webkit-app-region:no-drag}
+.overlay-lock-button:hover,.overlay-lock-button:focus-visible{border-color:#6b8b68;background:#263b2d;outline:none}
+.overlay-lock-button svg{display:block;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+body.overlay-locked header{-webkit-app-region:no-drag}
+body.overlay-locked .overlay-lock-button{visibility:visible}
+body.overlay-locked .resize-grip{display:none}
+body.lock-control{width:18px;height:18px;margin:0;padding:0;background:transparent}
+body.lock-control .overlay-lock-button{color:#e5d39a}

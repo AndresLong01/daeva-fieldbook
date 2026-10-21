@@ -1,0 +1,25 @@
+node_modules/
+dist/
+release/
+capture/*.exe
+capture/*.pdb
+capture-src/bin/
+capture-src/obj/
+*.log
+builder-debug.yml
+dev-app-update.yml
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+qa-profile*/
+qa-output*/
+
+# Historical local QA harnesses; current release checks are retained.
+qa*.cjs
+!qa-v026.cjs
+!qa-v100.cjs
+!qa-update-download.cjs
+preview.cjs
+build-icon.py

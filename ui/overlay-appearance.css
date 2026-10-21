@@ -1,0 +1,15 @@
+:root{--font-scale:1;--overlay-opacity:93%;font-size:calc(16px * var(--font-scale))}
+body .card{background:rgb(16 27 25 / var(--overlay-opacity))}
+body header{height:calc(27px * var(--font-scale));font-size:calc(8px * var(--font-scale))}
+body header small{font-size:calc(8px * var(--font-scale))}
+body.goal-overlay .goal-row{min-height:calc(34px * var(--font-scale))}
+body.goal-overlay .goal-line strong{font-size:clamp(calc(11px * var(--font-scale)),calc(8px * var(--font-scale) + 3cqh),calc(17px * var(--font-scale)))}
+body.goal-overlay .goal-line span{font-size:clamp(calc(9px * var(--font-scale)),calc(7px * var(--font-scale) + 2cqh),calc(14px * var(--font-scale)))}
+body.goal-overlay .track{height:clamp(2px,calc(1cqh * var(--font-scale)),calc(5px * var(--font-scale)))}
+body.timer-overlay .timer-item{min-height:calc(32px * var(--font-scale))}
+body.timer-overlay .timer-item span{font-size:clamp(calc(10px * var(--font-scale)),calc(8px * var(--font-scale) + 2cqh),calc(16px * var(--font-scale)))}
+body.timer-overlay .timer-item strong{font-size:clamp(calc(9px * var(--font-scale)),calc(7px * var(--font-scale) + 2cqh),calc(15px * var(--font-scale)))}
+body.timer-overlay .alert-button{width:calc(22px * var(--font-scale));height:calc(22px * var(--font-scale));font-size:calc(14px * var(--font-scale))}
+body.note-overlay article{min-height:calc(52px * var(--font-scale))}
+body.note-overlay article strong{font-size:clamp(calc(10px * var(--font-scale)),calc(8px * var(--font-scale) + 2cqh),calc(16px * var(--font-scale)))}
+body.note-overlay article p{font-size:clamp(calc(9px * var(--font-scale)),calc(7px * var(--font-scale) + 2cqh),calc(14px * var(--font-scale)))}
