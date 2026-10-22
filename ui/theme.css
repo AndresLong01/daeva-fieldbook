@@ -154,7 +154,7 @@ footer{justify-content:flex-start}
 .setting-toggle::after{content:'';position:absolute;top:3px;left:3px;width:11px;height:11px;border-radius:50%;background:var(--muted);transition:transform .15s}
 .setting-toggle:checked{background:var(--accent);border-color:var(--accent)}
 .setting-toggle:checked::after{background:var(--on-accent);transform:translateX(15px)}
-/* Preserve overlay header geometry: the independent unlock hit area aligns with it. */
+/* Overlay colors preserve the compact header geometry. */
 body .card{background:color-mix(in srgb,var(--bg) var(--overlay-opacity),transparent);border-color:var(--border);border-radius:0}
 body:not(:has(.shell)) header{color:var(--accent);border-color:var(--border)}body:not(:has(.shell)) header small{color:var(--muted)}
 body .goal-row,body .timer-item,body.note-overlay article{border-color:var(--line)}
@@ -163,7 +163,7 @@ body .timer-item span{color:var(--text)}body.note-overlay article p{color:var(--
 body .track{background:var(--border);border-radius:0}body .track>div{background:var(--accent)}
 body .alert-button{background:var(--field);border-color:var(--border);border-radius:0;color:var(--muted)}
 body .alert-button[aria-pressed=true]{background:var(--selected);border-color:var(--accent);color:var(--accent)}
-body .overlay-lock-button,body.lock-control .overlay-lock-button{color:var(--accent);border-radius:0}
+body .overlay-lock-button{color:var(--accent);border-radius:0}
 body .overlay-lock-button:hover,body .overlay-lock-button:focus-visible{background:var(--selected);border-color:var(--accent)}
 body .resize-grip{border-radius:0;background:linear-gradient(135deg,transparent 45%,var(--accent) 45% 52%,transparent 52% 65%,var(--accent) 65% 72%,transparent 72%)}
 @media(max-width:1100px){.version{display:none}.topbar{gap:12px}.event-chip{padding:5px 8px}.theme-color-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

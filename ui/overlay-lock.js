@@ -1,5 +1,13 @@
 'use strict';
 const lockButton=document.querySelector('.overlay-lock-button');
+let lockChangePending=false;
+function reportLockButtonBounds(){
+  const rect=lockButton.getBoundingClientRect();
+  window.desktop.overlayLockButtonBounds({x:rect.x,y:rect.y,width:rect.width,height:rect.height});
+}
+new ResizeObserver(reportLockButtonBounds).observe(document.querySelector('header'));
+window.addEventListener('resize',reportLockButtonBounds);
+document.addEventListener('overlay-appearance-changed',()=>requestAnimationFrame(reportLockButtonBounds));
 function showLockState(locked){
   document.body.classList.toggle('overlay-locked',locked);
   lockButton.setAttribute('aria-pressed',String(locked));
@@ -9,4 +17,10 @@ function showLockState(locked){
 }
 window.desktop.onOverlayLock(showLockState);
 window.desktop.overlayLockGet().then(showLockState);
-lockButton.addEventListener('click',async()=>{try{showLockState(await window.desktop.overlayLockToggle());}catch{lockButton.title='Could not change overlay lock';}});
+lockButton.addEventListener('click',async()=>{
+  if(lockChangePending)return;
+  lockChangePending=true;
+  try{showLockState(await window.desktop.overlayLockToggle());}
+  catch{lockButton.title='Could not change overlay lock';}
+  finally{lockChangePending=false;}
+});

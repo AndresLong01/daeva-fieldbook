@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld('desktop', {
   overlayResize: dimensions => ipcRenderer.send('overlay-resize', dimensions),
   overlayLockGet: () => ipcRenderer.invoke('overlay-lock-get'),
   overlayLockToggle: () => ipcRenderer.invoke('overlay-lock-toggle'),
-  overlayLockRelease: () => ipcRenderer.send('overlay-lock-release'),
+  overlayLockButtonBounds: rect => ipcRenderer.send('overlay-lock-button-bounds', rect),
   onOverlayLock: callback => ipcRenderer.on('overlay-lock-state', (_event, locked) => callback(locked)),
   overlayLockClear: () => ipcRenderer.invoke('overlay-lock-clear'),
   overlayContentMin: height => ipcRenderer.send('overlay-content-min', height),

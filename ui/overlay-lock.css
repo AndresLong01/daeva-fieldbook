@@ -5,5 +5,3 @@
 body.overlay-locked header{-webkit-app-region:no-drag}
 body.overlay-locked .overlay-lock-button{visibility:visible}
 body.overlay-locked .resize-grip{display:none}
-body.lock-control{width:18px;height:18px;margin:0;padding:0;background:transparent}
-body.lock-control .overlay-lock-button{color:#e5d39a}

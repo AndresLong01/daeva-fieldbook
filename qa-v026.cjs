@@ -1,11 +1,26 @@
-const {app,BrowserWindow,screen}=require('electron');
+const {app,BrowserWindow}=require('electron');
 const fs=require('node:fs/promises');
 const path=require('node:path');
-const {execFileSync}=require('node:child_process');
 const assert=require('node:assert/strict');
-const profile=path.join(__dirname,'..','qa-profile-v026');
+const profile=path.join(__dirname,'..',`qa-profile-v026-${Date.now()}`);
 const output=path.join(__dirname,'..','qa-v026');
 app.setPath('userData',profile);
+// Drive focus transitions deterministically while the user may be playing AION 2.
+const childProcess=require('node:child_process');
+const {PassThrough}=require('node:stream');
+const {EventEmitter}=require('node:events');
+const originalSpawn=childProcess.spawn;
+let focusProbe;
+childProcess.spawn=function(command,args,options){
+  if(args?.some(arg=>String(arg).endsWith('game-focus.ps1'))){
+    focusProbe=new EventEmitter();
+    focusProbe.stdout=new PassThrough();focusProbe.stderr=new PassThrough();
+    focusProbe.kill=()=>{focusProbe.stdout.end();focusProbe.stderr.end();};
+    setImmediate(()=>focusProbe.stdout.write('other\n'));
+    return focusProbe;
+  }
+  return originalSpawn(command,args,options);
+};
 require('./main.cjs');
 async function waitFor(check){
   for(let i=0;i<100;i++){const result=await check();if(result)return result;await new Promise(resolve=>setTimeout(resolve,100));}
@@ -26,7 +41,13 @@ app.whenReady().then(async()=>{
   await waitFor(()=>main.webContents.executeJavaScript(`window.desktop.timerPinsGet().then(pins=>pins.includes('abyss:watcher'))`));
   let timer=await waitFor(()=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('timer-overlay.html')&&!w.webContents.isLoading()));
   await waitFor(()=>timer.webContents.executeJavaScript(`document.getElementById('timer-items').textContent.includes('Watcher Kaira')`));
+  main.focus();
+  await waitFor(()=>!timer.isVisible());
   assert.equal(timer.isVisible(),false,'Default focus-only setting hides overlays outside AION 2');
+  focusProbe.stdout.write('game\n');
+  await waitFor(()=>timer.isVisible());
+  focusProbe.stdout.write('other\n');
+  await waitFor(()=>!timer.isVisible());
   const scheduleMatch=await main.webContents.executeJavaScript(`(()=>{const now=Date.now();return {expected:nextAbyssStart(abyssEvents.find(e=>e.id==='watcher'),now),offset:data.abyssClockOffset};})()`);
   assert.equal(await timer.webContents.executeJavaScript(`pinnedSnapshot[0].dueAt`),scheduleMatch.expected);
   await main.webContents.executeJavaScript(`document.getElementById('settings-tab').click()`);
@@ -34,28 +55,7 @@ app.whenReady().then(async()=>{
   await main.webContents.executeJavaScript(`document.getElementById('overlay-game-only').click()`);
   await waitFor(()=>timer.isVisible());
   assert.equal((await main.webContents.executeJavaScript(`window.desktop.settingsGet()`)).overlayGameOnly,false);
-  // Repeated lock cycles must retain a visible, reachable native click target.
-  const nativeHits=[];
-  let firstControlId;
-  for(let cycle=0;cycle<4;cycle++){
-    if(cycle===2)await main.webContents.executeJavaScript(`window.desktop.settingsGet().then(s=>window.desktop.settingsSet({...s,timerFontSize:150}))`);
-    await timer.webContents.executeJavaScript(`document.querySelector('.overlay-lock-button').click()`);
-    const control=await waitFor(()=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('lock-control.html')&&!w.webContents.isLoading()&&w.isVisible()));
-    if(cycle===0)firstControlId=control.id;else assert.equal(control.id,firstControlId,'Reuse the unlock control across lock cycles');
-    const parent=timer.getBounds(),bounds=control.getBounds();
-    const rect=await timer.webContents.executeJavaScript(`(()=>{const r=document.querySelector('.overlay-lock-button').getBoundingClientRect();return{x:r.x,y:r.y};})()`);
-    assert(Math.abs(parent.x+rect.x-bounds.x)<=2,'Lock control horizontal alignment');
-    assert(Math.abs(parent.y+rect.y-bounds.y)<=2,'Lock control vertical alignment at custom font sizes');
-    const point=screen.dipToScreenPoint({x:bounds.x+9,y:bounds.y+9});
-    const expected=control.getNativeWindowHandle().readBigUInt64LE().toString();
-    const hit=execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',`Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class HitTest { [StructLayout(LayoutKind.Sequential)] public struct Point { public int X; public int Y; } [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point p); [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint f); }'; $p = New-Object HitTest+Point; $p.X=${point.x}; $p.Y=${point.y}; [HitTest]::GetAncestor([HitTest]::WindowFromPoint($p),2).ToInt64()`],{windowsHide:true,encoding:'utf8'}).trim();
-    nativeHits.push({cycle,hit,expected});
-    assert.equal(hit,expected,'The unlock icon must be the topmost native hit target');
-    control.webContents.sendInputEvent({type:'mouseDown',x:9,y:9,button:'left',clickCount:1});
-    control.webContents.sendInputEvent({type:'mouseUp',x:9,y:9,button:'left',clickCount:1});
-    await waitFor(()=>timer.isMovable()&&!control.isVisible());
-    assert.equal(await timer.webContents.executeJavaScript(`window.desktop.overlayLockGet()`),false);
-  }
+  // Lock hit testing and repeated unlock cycles are covered in qa-overlay-unlock.cjs.
   await main.webContents.executeJavaScript(`window.desktop.settingsGet().then(s=>window.desktop.settingsSet({...s,timerFontSize:100}))`);
   await main.webContents.executeJavaScript(`document.getElementById('abyss-tab').click();document.querySelector('[data-pin="abyss:siege"]').click()`);
   await waitFor(()=>timer.webContents.executeJavaScript(`document.querySelectorAll('.timer-item').length===2`));
@@ -81,15 +81,16 @@ app.whenReady().then(async()=>{
   await fs.writeFile(path.join(output,'abyss.png'),(await main.webContents.capturePage()).toPNG());
   await fs.writeFile(path.join(output,'abyss-overlay.png'),(await timer.webContents.capturePage()).toPNG());
   await timer.webContents.executeJavaScript(`document.querySelector('.overlay-lock-button').click()`);
-  const control=await waitFor(()=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('lock-control.html')&&w.isVisible()));
+  await waitFor(()=>!timer.isMovable());
   await main.webContents.executeJavaScript(`window.desktop.overlayVisibilitySet(false)`);
-  assert(!timer.isVisible()&&!control.isVisible());
+  assert(!timer.isVisible());
   await main.webContents.executeJavaScript(`window.desktop.overlayVisibilitySet(true)`);
-  assert(timer.isVisible()&&control.isVisible());
+  assert(timer.isVisible());
   await main.webContents.executeJavaScript(`document.getElementById('settings-tab').click()`);
   await new Promise(resolve=>setTimeout(resolve,100));
   await main.webContents.executeJavaScript(`document.getElementById('overlay-game-only').click()`);
-  await waitFor(()=>!timer.isVisible()&&!control.isVisible());
+  main.focus();
+  await waitFor(()=>!timer.isVisible());
   await fs.writeFile(path.join(output,'settings.png'),(await main.webContents.capturePage()).toPNG());
   const reload=new Promise(resolve=>main.webContents.once('did-finish-load',resolve));main.webContents.reload();await reload;
   await waitFor(()=>main.webContents.executeJavaScript(`document.querySelector('[data-pin="abyss:watcher"]').getAttribute('aria-pressed')==='true'`));
@@ -98,6 +99,6 @@ app.whenReady().then(async()=>{
   await waitFor(()=>!BrowserWindow.getAllWindows().some(w=>w.webContents.getURL().includes('timer-overlay.html')));
   assert.equal(await main.webContents.executeJavaScript(`document.querySelector('[data-pin="abyss:watcher"]').getAttribute('aria-pressed')`),'false');
   assert.deepEqual(errors,[]);
-  await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:true,nativeHits,abyssScheduleMatches:true,abyssAlertOnce:true,focusAndManualVisibility:true,errors},null,2));
+  await fs.writeFile(path.join(output,'report.json'),JSON.stringify({passed:true,abyssScheduleMatches:true,abyssAlertOnce:true,simulatedFocusAndManualVisibility:true,errors},null,2));
   app.exit(0);
 }).catch(async error=>{await fs.mkdir(output,{recursive:true});await fs.writeFile(path.join(output,'error.txt'),String(error.stack||error)+'\n'+JSON.stringify(BrowserWindow.getAllWindows().map(w=>({id:w.id,url:w.webContents.getURL(),visible:w.isVisible(),loading:w.webContents.isLoading(),bounds:w.getBounds()})),null,2));app.exit(1);});

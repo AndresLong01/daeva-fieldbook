@@ -76,7 +76,9 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
   let quitting = false;
   let overlayLocksFile;
   let overlayLocks = { goal: false, timer: false, event: false, note: false };
-  const lockControls = new Map();
+  const overlayLockButtons = new WeakMap();
+  const overlayMouseIgnored = new WeakMap();
+  let overlayHitTestTimer;
   const alerted = new Map();
   let timerSnapshot = [];
   let noteSnapshot = [];
@@ -85,10 +87,6 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
   function applyOverlayVisibility(visible) {
     overlaysVisible = visible;
     for (const window of [overlay, timerOverlay, eventOverlay, noteOverlay]) if (window && !window.isDestroyed()) { if (visible && (gameFocused || !appSettings.overlayGameOnly)) window.showInactive(); else window.hide(); }
-    for (const [kind, control] of lockControls) {
-      const target = { goal: overlay, timer: timerOverlay, event: eventOverlay, note: noteOverlay }[kind];
-      if (overlayLocks[kind] && visible && (gameFocused || !appSettings.overlayGameOnly) && target && !target.isDestroyed() && target.isVisible() && !control.webContents.isLoading()) { control.showInactive(); control.moveTop(); } else control.hide();
-    }
     if (win && !win.isDestroyed()) win.webContents.send('overlay-visibility', visible);
   }
   function startFocusWatcher() {
@@ -109,48 +107,13 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
       if (!quitting) focusRestartTimer = setTimeout(startFocusWatcher, 2000);
     });
   }
-  function positionLockControl(window, kind) {
-    const control = lockControls.get(kind);
-    if (!control || control.isDestroyed() || !window || window.isDestroyed()) return;
-    const bounds = window.getBounds();
-    const scale = (kind === 'goal' ? appSettings.goalFontSize : kind === 'note' ? appSettings.noteFontSize : appSettings.timerFontSize) / 100;
-    control.setBounds({ x: bounds.x + bounds.width - 30, y: bounds.y + Math.round(4 + (27 * scale - 18) / 2), width: 18, height: 18 });
-    control.setShape([{ x: 0, y: 0, width: 18, height: 18 }]);
-  }
-  function syncLockControl(window, kind) {
-    const existing = lockControls.get(kind);
-    if (!overlayLocks[kind] || !window || window.isDestroyed()) {
-      if (existing && !existing.isDestroyed()) existing.hide();
-      return;
-    }
-    if (!existing || existing.isDestroyed()) {
-      const control = new BrowserWindow({ width: 18, height: 18, minWidth: 1, minHeight: 1, frame: false, transparent: true, resizable: false, movable: false, focusable: false, skipTaskbar: true, show: false, alwaysOnTop: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
-      lockControls.set(kind, control);
-      control.setAlwaysOnTop(true, 'screen-saver');
-      control.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-      control.webContents.on('will-navigate', event => event.preventDefault());
-      control.webContents.on('did-stop-loading', () => syncLockControl(window, kind));
-      control.once('ready-to-show', () => syncLockControl(window, kind));
-      control.loadFile(path.join(__dirname, 'ui/lock-control.html'));
-    }
-    positionLockControl(window, kind);
-    const control = lockControls.get(kind);
-    if (overlaysVisible && (gameFocused || !appSettings.overlayGameOnly) && window.isVisible() && !control.webContents.isLoading()) { control.showInactive(); control.moveTop(); } else control.hide();
-  }
-  function bindLockControl(window, kind) {
-    window.on('move', () => positionLockControl(window, kind));
-    window.on('resize', () => syncLockControl(window, kind));
-    window.on('show', () => syncLockControl(window, kind));
-    window.on('hide', () => syncLockControl(window, kind));
-    window.on('closed', () => { const control = lockControls.get(kind); if (control && !control.isDestroyed()) control.close(); lockControls.delete(kind); });
-  }
   function applyOverlayLock(window, kind) {
     if (!window || window.isDestroyed()) return;
     const locked = overlayLocks[kind];
     window.setMovable(!locked);
     window.setResizable(!locked);
     window.setIgnoreMouseEvents(locked);
-    syncLockControl(window, kind);
+    overlayMouseIgnored.set(window, locked);
     if (!window.webContents.isLoading()) window.webContents.send('overlay-lock-state', locked);
   }
   function overlayKindFor(contents) {
@@ -184,7 +147,6 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     for (const [window, count] of [[timerOverlay, separateEvents ? bossCount : timerPins.length], [eventOverlay, timerPins.length - bossCount]]) enforceOverlayMinimum(window, Math.min(700, Math.ceil(195 * appSettings.timerFontSize / 100)), Math.min(700, area.height - 20, Math.ceil((36 + count * 32) * appSettings.timerFontSize / 100)));
     enforceOverlayMinimum(noteOverlay, Math.min(800, Math.ceil(200 * appSettings.noteFontSize / 100)), Math.min(700, area.height - 20, Math.ceil((32 + noteSnapshot.length * 52) * appSettings.noteFontSize / 100)));
     for (const window of [overlay, timerOverlay, eventOverlay, noteOverlay]) if (window && !window.isDestroyed() && !window.webContents.isLoading()) window.webContents.send('overlay-appearance', overlayAppearanceFor(window.webContents));
-    for (const [kind, target] of [['goal', overlay], ['timer', timerOverlay], ['event', eventOverlay], ['note', noteOverlay]]) syncLockControl(target, kind);
   }
   function createOverlay() {
     const area = screen.getPrimaryDisplay().workArea;
@@ -195,7 +157,6 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     const visible = overlayPosition && screen.getAllDisplays().some(display => overlayPosition.x >= display.workArea.x && overlayPosition.y >= display.workArea.y && overlayPosition.x + width <= display.workArea.x + display.workArea.width && overlayPosition.y + height <= display.workArea.y + display.workArea.height);
     overlay = new BrowserWindow({ width, height, minWidth: minimumWidth, minHeight: minimumHeight, x: visible ? overlayPosition.x : area.x + area.width - width - 20, y: visible ? overlayPosition.y : area.y + 20, frame: false, transparent: true, resizable: true, movable: true, focusable: false, skipTaskbar: true, show: false, alwaysOnTop: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
     overlay.setAlwaysOnTop(true, 'screen-saver');
-    bindLockControl(overlay, 'goal');
     applyOverlayLock(overlay, 'goal');
     const saveBounds = () => { overlayPosition = overlay.getBounds(); void fs.writeFile(overlayPositionFile, JSON.stringify(overlayPosition), 'utf8'); };
     overlay.on('move', saveBounds);
@@ -203,7 +164,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     overlay.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     overlay.webContents.on('will-navigate', event => event.preventDefault());
     overlay.loadFile(path.join(__dirname, 'ui/goal-overlay.html'));
-    overlay.once('ready-to-show', () => { if (overlaysVisible && (gameFocused || !appSettings.overlayGameOnly)) overlay.showInactive(); syncLockControl(overlay, 'goal'); });
+    overlay.once('ready-to-show', () => { if (overlaysVisible && (gameFocused || !appSettings.overlayGameOnly)) overlay.showInactive(); });
     overlay.webContents.on('did-finish-load', () => { overlay.webContents.send('goal-state', goals); overlay.webContents.send('overlay-lock-state', overlayLocks.goal); });
   }
   function createTimerOverlay(kind) {
@@ -219,7 +180,6 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     const instance = new BrowserWindow({ width, height, minWidth: minimumWidth, minHeight: minimumHeight, x: visible ? saved.x : area.x + area.width - width - 20, y: visible ? saved.y : area.y + (isEvent ? 180 : 95), frame: false, transparent: true, resizable: true, movable: true, focusable: false, skipTaskbar: true, show: false, alwaysOnTop: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false } });
     if (isEvent) eventOverlay = instance; else timerOverlay = instance;
     instance.setAlwaysOnTop(true, 'screen-saver');
-    bindLockControl(instance, isEvent ? 'event' : 'timer');
     applyOverlayLock(instance, isEvent ? 'event' : 'timer');
     const saveBounds = () => {
       if (isEvent) { eventOverlayPosition = instance.getBounds(); void fs.writeFile(eventOverlayPositionFile, JSON.stringify(eventOverlayPosition), 'utf8'); }
@@ -230,7 +190,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     instance.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     instance.webContents.on('will-navigate', event => event.preventDefault());
     instance.loadFile(path.join(__dirname, 'ui/timer-overlay.html'), { query: { kind: isEvent ? 'event' : separateEvents ? 'boss' : 'all' } });
-    instance.once('ready-to-show', () => { if (overlaysVisible && (gameFocused || !appSettings.overlayGameOnly)) instance.showInactive(); syncLockControl(instance, isEvent ? 'event' : 'timer'); });
+    instance.once('ready-to-show', () => { if (overlaysVisible && (gameFocused || !appSettings.overlayGameOnly)) instance.showInactive(); });
     instance.webContents.on('did-finish-load', () => { instance.webContents.send('timer-overlay-snapshot', timerSnapshot.filter(item => isEvent ? !item.key.startsWith('boss:') : !separateEvents || item.key.startsWith('boss:'))); instance.webContents.send('timer-alert-pins', alertPins); instance.webContents.send('overlay-lock-state', overlayLocks[isEvent ? 'event' : 'timer']); });
   }
   function syncTimerOverlays() {
@@ -256,7 +216,6 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     const visible = saved && screen.getAllDisplays().some(display => saved.x >= display.workArea.x && saved.y >= display.workArea.y && saved.x + width <= display.workArea.x + display.workArea.width && saved.y + height <= display.workArea.y + display.workArea.height);
     noteOverlay = new BrowserWindow({ width, height, minWidth: minimumWidth, minHeight: minimumHeight, x: visible ? saved.x : area.x + area.width - width - 20, y: visible ? saved.y : area.y + 270, frame: false, transparent: true, resizable: true, movable: true, focusable: false, skipTaskbar: true, show: false, alwaysOnTop: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
     noteOverlay.setAlwaysOnTop(true, 'screen-saver');
-    bindLockControl(noteOverlay, 'note');
     applyOverlayLock(noteOverlay, 'note');
     const saveBounds = () => { noteOverlayPosition = noteOverlay.getBounds(); void fs.writeFile(noteOverlayPositionFile, JSON.stringify(noteOverlayPosition), 'utf8'); };
     noteOverlay.on('move', saveBounds);
@@ -264,7 +223,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     noteOverlay.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     noteOverlay.webContents.on('will-navigate', event => event.preventDefault());
     noteOverlay.loadFile(path.join(__dirname, 'ui/note-overlay.html'));
-    noteOverlay.once('ready-to-show', () => { if (overlaysVisible && (gameFocused || !appSettings.overlayGameOnly)) noteOverlay.showInactive(); syncLockControl(noteOverlay, 'note'); });
+    noteOverlay.once('ready-to-show', () => { if (overlaysVisible && (gameFocused || !appSettings.overlayGameOnly)) noteOverlay.showInactive(); });
     noteOverlay.webContents.on('did-finish-load', () => { noteOverlay.webContents.send('note-overlay-snapshot', noteSnapshot); noteOverlay.webContents.send('overlay-lock-state', overlayLocks.note); });
   }
   function publishGoals() {
@@ -314,6 +273,22 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
   }
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
   app.whenReady().then(async () => {
+    // A locked overlay remains click-through except for its own visible lock button.
+    // Screen DIP polling also works while the transparent window receives no mouse events.
+    overlayHitTestTimer = setInterval(() => {
+      const cursor = screen.getCursorScreenPoint();
+      for (const [kind, target] of [['goal', overlay], ['timer', timerOverlay], ['event', eventOverlay], ['note', noteOverlay]]) {
+        if (!overlayLocks[kind] || !target || target.isDestroyed() || !target.isVisible()) continue;
+        const rect = overlayLockButtons.get(target), bounds = target.getBounds();
+        const overButton = rect && cursor.x >= bounds.x + rect.x && cursor.x < bounds.x + rect.x + rect.width && cursor.y >= bounds.y + rect.y && cursor.y < bounds.y + rect.y + rect.height;
+        const ignore = !overButton;
+        if (overlayMouseIgnored.get(target) !== ignore) {
+          target.setIgnoreMouseEvents(ignore);
+          overlayMouseIgnored.set(target, ignore);
+        }
+      }
+    }, 16);
+
     Menu.setApplicationMenu(null);
     goalFile = path.join(app.getPath('userData'), 'gather-goal.json');
     overlayPositionFile = path.join(app.getPath('userData'), 'goal-overlay-position.json');
@@ -459,14 +434,10 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
       await fs.writeFile(overlayLocksFile, JSON.stringify(overlayLocks), 'utf8');
       return overlayLocks[kind];
     });
-    ipcMain.on('overlay-lock-release', event => {
-      const entry = [...lockControls].find(([, control]) => !control.isDestroyed() && control.webContents === event.sender);
-      if (!entry || !overlayLocks[entry[0]]) return;
-      const kind = entry[0];
-      overlayLocks[kind] = false;
-      applyOverlayLock({ goal: overlay, timer: timerOverlay, event: eventOverlay, note: noteOverlay }[kind], kind);
-      publishOverlayAppearance();
-      void fs.writeFile(overlayLocksFile, JSON.stringify(overlayLocks), 'utf8');
+    ipcMain.on('overlay-lock-button-bounds', (event, rect) => {
+      const kind = overlayKindFor(event.sender);
+      if (!kind || !rect || !['x', 'y', 'width', 'height'].every(key => Number.isFinite(rect[key])) || rect.width < 1 || rect.width > 64 || rect.height < 1 || rect.height > 64) return;
+      overlayLockButtons.set(BrowserWindow.fromWebContents(event.sender), rect);
     });
     ipcMain.handle('overlay-lock-clear', async event => {
       if (event.sender !== win.webContents) throw new Error('Invalid settings action');
@@ -591,5 +562,5 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     win.loadFile(path.join(__dirname, 'ui/index.html'));
   });
   app.on('window-all-closed', () => app.quit());
-  app.on('will-quit', () => { quitting = true; clearTimeout(focusRestartTimer); if (focusWatcher) focusWatcher.kill(); globalShortcut.unregisterAll(); stopCapture(); });
+  app.on('will-quit', () => { quitting = true; clearInterval(overlayHitTestTimer); clearTimeout(focusRestartTimer); if (focusWatcher) focusWatcher.kill(); globalShortcut.unregisterAll(); stopCapture(); });
 }
