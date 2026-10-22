@@ -24,5 +24,8 @@ qa*.cjs
 !qa-theme-persistence.cjs
 !qa-cubes.cjs
 !qa-overlay-unlock.cjs
+!qa-settings-persistence.cjs
+!qa-instance-lifecycle.cjs
+!qa-background-interactions.cjs
 preview.cjs
 build-icon.py

@@ -1,2 +1,5 @@
 .resize-grip{position:fixed;right:3px;bottom:3px;z-index:5;width:15px;height:15px;padding:0;border:0;border-radius:0 0 5px 0;background:linear-gradient(135deg,transparent 45%,#91ad81 45% 52%,transparent 52% 65%,#91ad81 65% 72%,transparent 72%);cursor:nwse-resize;-webkit-app-region:no-drag}
 .resize-grip:hover{filter:brightness(1.5)}
+body header{-webkit-app-region:no-drag;cursor:grab;touch-action:none}
+body header.moving{cursor:grabbing}
+body.overlay-locked header{cursor:default}

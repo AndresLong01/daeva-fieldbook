@@ -76,6 +76,9 @@ existing installations do not downgrade. Pre-releases are not offered by the app
 The Electron profile is `%APPDATA%\daeva-fieldbook`. It contains notes, settings,
 goals, and overlay positions. It is not committed or included in releases.
 `--fieldbook-profile=<absolute-path>` selects an isolated QA profile.
+All profiles and versions share a single-instance lock: launching another copy
+brings the existing Fieldbook forward instead of creating duplicate overlays.
+Close the running app before starting a development preview or a QA run.
 
 ## Attribution
 

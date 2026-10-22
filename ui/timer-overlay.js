@@ -8,16 +8,30 @@ function countdownText(seconds){
 }
 function render(){
   const now=Date.now();
-  document.getElementById('timer-items').replaceChildren(...pinnedSnapshot.map(item=>{
-    const row=document.createElement('div'),bell=document.createElement('button'),name=document.createElement('span'),status=document.createElement('strong');
-    row.className='timer-item';name.textContent=item.name;
-    bell.className='alert-button';bell.type='button';bell.dataset.alertKey=item.key;bell.textContent='!';bell.setAttribute('aria-pressed',String(alertPins.includes(item.key)));bell.setAttribute('aria-label',`${alertPins.includes(item.key)?'Disable':'Enable'} one-minute alert for ${item.name}`);bell.title=alertPins.includes(item.key)?'One-minute alert on':'Enable one-minute alert';
-    if(item.endAt>now){status.textContent=`OPEN ${countdownText(Math.ceil((item.endAt-now)/1000))}`;status.className='open';}
-    else if(item.dueAt>now){status.textContent=`${item.label.startsWith('≈')?'≈ ':''}${countdownText(Math.ceil((item.dueAt-now)/1000))}`;}
-    else if(item.dueAt>0){status.textContent='Due · verify';status.className='due';}
-    else{status.textContent=item.label;status.className=item.label.includes('up')?'up':'';}
-    row.append(bell,name,status);return row;
-  }));
+  const list=document.getElementById('timer-items');
+  const rows=new Map([...list.children].map(row=>[row.dataset.key,row]));
+  pinnedSnapshot.forEach((item,index)=>{
+    let row=rows.get(item.key);
+    if(!row){
+      row=document.createElement('div');row.className='timer-item';row.dataset.key=item.key;
+      const bell=document.createElement('button');bell.className='alert-button';bell.type='button';bell.dataset.alertKey=item.key;bell.textContent='!';
+      row.append(bell,document.createElement('span'),document.createElement('strong'));
+    }
+    rows.delete(item.key);
+    const [bell,name,status]=row.children,enabled=alertPins.includes(item.key);
+    if(name.textContent!==item.name)name.textContent=item.name;
+    const label=`${enabled?'Disable':'Enable'} one-minute alert for ${item.name}`;
+    if(bell.getAttribute('aria-label')!==label){bell.setAttribute('aria-pressed',String(enabled));bell.setAttribute('aria-label',label);bell.title=enabled?'One-minute alert on':'Enable one-minute alert';}
+    let text,kind='';
+    if(item.endAt>now){text=`OPEN ${countdownText(Math.ceil((item.endAt-now)/1000))}`;kind='open';}
+    else if(item.dueAt>now)text=`${item.label.startsWith('≈')?'≈ ':''}${countdownText(Math.ceil((item.dueAt-now)/1000))}`;
+    else if(item.dueAt>0){text='Due · verify';kind='due';}
+    else{text=item.label;kind=item.label.includes('up')?'up':'';}
+    if(status.textContent!==text)status.textContent=text;
+    if(status.className!==kind)status.className=kind;
+    if(list.children[index]!==row)list.insertBefore(row,list.children[index]||null);
+  });
+  for(const row of rows.values())row.remove();
 }
 window.desktop.onTimerOverlaySnapshot(snapshot=>{if(Array.isArray(snapshot)){pinnedSnapshot=snapshot;render();}});
 window.desktop.onTimerAlertPins(pins=>{if(Array.isArray(pins)){alertPins=pins;render();}});

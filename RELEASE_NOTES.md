@@ -1,10 +1,13 @@
-# Daeva Fieldbook 1.0.4
+# Daeva Fieldbook 1.0.5
 
-- Fixed overlay unlocking: the visible lock button now handles both locking and
-  unlocking directly, replacing the separate unlock window.
-- Locked overlays pass clicks through to the game except over the lock button.
-  Unlocking restores movement and resizing for goals, bosses, events, and notes.
-- The clickable lock area follows your font size and overlay dimensions.
+- Overlay headers now use pointer-based dragging. Timer refreshes preserve alert
+  buttons so a countdown update cannot replace a button during a click.
+- Font sizes, opacity, and volume save immediately. Rapid edits preserve the latest
+  settings, and overlay show/hide preferences survive restarts and updates.
+- Installed builds and development previews share one instance lock to prevent
+  duplicate apps and overlays while keeping their data profiles separate.
+- Idle overlays stop unnecessary lock polling and focus monitoring. Focus helpers
+  exit with the app, and unchanged timers avoid repeated native resize calls.
 
 Existing notes, goals, pins, and saved preferences are retained. Use Settings →
 Check for updates, then Download update beside the title to install this release.

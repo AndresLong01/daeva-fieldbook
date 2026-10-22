@@ -52,7 +52,7 @@ app.whenReady().then(async()=>{
     await new Promise(resolve=>setTimeout(resolve,100));
     const state={overlay:timer.webContents.getURL().split('/').pop(),cycle,font,movable:timer.isMovable(),resizable:timer.isResizable(),locked:await timer.webContents.executeJavaScript(`window.desktop.overlayLockGet()`),drag:await timer.webContents.executeJavaScript(`getComputedStyle(document.querySelector('header')).webkitAppRegion`)};
     results.push(state);console.log(JSON.stringify(state));
-    assert.equal(state.locked,false);assert.equal(state.movable,true);assert.equal(state.resizable,true);assert.equal(state.drag,'drag');
+    assert.equal(state.locked,false);assert.equal(state.movable,true);assert.equal(state.resizable,true);assert.equal(state.drag,'no-drag','Pointer-based dragging must receive header events');
     assert.equal(ignored.get(timer),false,'Unlocked overlay stays interactive after cursor leaves lock button');
     const saved=JSON.parse(await fs.readFile(path.join(output,'profile/overlay-locks.json'),'utf8'));
     assert(Object.values(saved).every(locked=>locked===false));

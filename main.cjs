@@ -10,7 +10,13 @@ const { autoUpdater } = require('electron-updater');
 // QA can use a separate profile without touching the user's notebook.
 const profile = process.argv.find(arg => arg.startsWith('--fieldbook-profile='));
 if (profile) app.setPath('userData', path.resolve(profile.split('=').slice(1).join('=')));
-if (!app.requestSingleInstanceLock()) { app.quit(); } else {
+// Electron scopes its lock to userData. Use one canonical lock for installed
+// builds, previews, and QA, then restore the requested data folder before startup.
+const dataProfile = app.getPath('userData');
+app.setPath('userData', path.join(app.getPath('appData'), 'daeva-fieldbook'));
+const ownsInstance = app.requestSingleInstanceLock();
+app.setPath('userData', dataProfile);
+if (!ownsInstance) { app.quit(); } else {
   let win;
   let updateState = { status: 'idle', version: app.getVersion(), availableVersion: null, percent: 0, message: '' };
   let updateCheckPending = false;
@@ -60,7 +66,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
   let separateEvents = false;
   let alertPins = [];
   let appSettingsFile;
-  let appSettings = { volume: 70, overlayShortcut: 'Control+Alt+O', goalShortcut: 'Control+Alt+G', goalFontSize: 100, timerFontSize: 100, noteFontSize: 100, overlayOpacity: 93, overlayGameOnly: true, colors: { background: '#15191d', text: '#e8e7df', accent: '#b8d99b', border: '#465056' } };
+  let appSettings = { volume: 70, overlayShortcut: 'Control+Alt+O', goalShortcut: 'Control+Alt+G', goalFontSize: 100, timerFontSize: 100, noteFontSize: 100, overlayOpacity: 93, overlayGameOnly: true, overlaysVisible: true, colors: { background: '#15191d', text: '#e8e7df', accent: '#b8d99b', border: '#465056' } };
   function saveAppSettings(next) {
     // This small file is committed before another settings IPC or window close can run.
     // Replace it atomically so an interrupted write leaves the last good settings intact.
@@ -78,6 +84,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
   let overlayLocks = { goal: false, timer: false, event: false, note: false };
   const overlayLockButtons = new WeakMap();
   const overlayMouseIgnored = new WeakMap();
+  const overlayMoves = new WeakMap();
   let overlayHitTestTimer;
   const alerted = new Map();
   let timerSnapshot = [];
@@ -85,14 +92,16 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
   let captureProcess;
   let captureStatus = 'Off';
   function applyOverlayVisibility(visible) {
+    if (visible !== appSettings.overlaysVisible) saveAppSettings({ ...appSettings, overlaysVisible: visible });
     overlaysVisible = visible;
     for (const window of [overlay, timerOverlay, eventOverlay, noteOverlay]) if (window && !window.isDestroyed()) { if (visible && (gameFocused || !appSettings.overlayGameOnly)) window.showInactive(); else window.hide(); }
     if (win && !win.isDestroyed()) win.webContents.send('overlay-visibility', visible);
+    syncOverlayActivity();
   }
   function startFocusWatcher() {
-    if (quitting) return;
+    if (quitting || focusWatcher) return;
     const captureRoot = app.isPackaged ? __dirname.replace(/app\.asar(?=[\\/]|$)/, 'app.asar.unpacked') : __dirname;
-    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(captureRoot, 'capture/game-focus.ps1')], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(captureRoot, 'capture/game-focus.ps1'), '-ParentProcessId', String(process.pid)], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     focusWatcher = child;
     child.stderr.resume();
     createInterface({ input: child.stdout }).on('line', line => {
@@ -100,21 +109,60 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
       const next = line === 'game';
       if (gameFocused !== next) { gameFocused = next; applyOverlayVisibility(overlaysVisible); }
     });
-    child.on('error', () => { if (focusWatcher === child) { focusWatcher = null; gameFocused = false; applyOverlayVisibility(overlaysVisible); if (!quitting) focusRestartTimer = setTimeout(startFocusWatcher, 2000); } });
-    child.on('exit', () => {
+    const restart = () => {
       if (focusWatcher !== child) return;
-      focusWatcher = null; gameFocused = false; applyOverlayVisibility(overlaysVisible);
-      if (!quitting) focusRestartTimer = setTimeout(startFocusWatcher, 2000);
-    });
+      focusWatcher = null; gameFocused = false;
+      if (!quitting) focusRestartTimer = setTimeout(() => { focusRestartTimer = null; syncOverlayActivity(); }, 2000);
+      applyOverlayVisibility(overlaysVisible);
+    };
+    child.on('error', restart);
+    child.on('exit', restart);
+  }
+  function syncOverlayActivity() {
+    const windows = [['goal', overlay], ['timer', timerOverlay], ['event', eventOverlay], ['note', noteOverlay]].filter(([, target]) => target && !target.isDestroyed());
+    const needsFocus = !quitting && overlaysVisible && appSettings.overlayGameOnly && windows.length > 0;
+    if (needsFocus && !focusWatcher && !focusRestartTimer) {
+      focusRestartTimer = setTimeout(() => { focusRestartTimer = null; startFocusWatcher(); }, 300);
+    } else if (!needsFocus) {
+      clearTimeout(focusRestartTimer); focusRestartTimer = null;
+      const child = focusWatcher; focusWatcher = null;
+      if (child) child.kill();
+      gameFocused = false;
+    }
+    const needsHitTest = !quitting && windows.some(([kind, target]) => overlayLocks[kind] && target.isVisible());
+    if (!needsHitTest) { clearInterval(overlayHitTestTimer); overlayHitTestTimer = null; }
+    else if (!overlayHitTestTimer) {
+      overlayHitTestTimer = setInterval(() => {
+        const cursor = screen.getCursorScreenPoint();
+        for (const [kind, target] of [['goal', overlay], ['timer', timerOverlay], ['event', eventOverlay], ['note', noteOverlay]]) {
+          if (!overlayLocks[kind] || !target || target.isDestroyed() || !target.isVisible()) continue;
+          const rect = overlayLockButtons.get(target), bounds = target.getBounds();
+          const overButton = rect && cursor.x >= bounds.x + rect.x && cursor.x < bounds.x + rect.x + rect.width && cursor.y >= bounds.y + rect.y && cursor.y < bounds.y + rect.y + rect.height;
+          const ignore = !overButton;
+          if (overlayMouseIgnored.get(target) !== ignore) {
+            target.setIgnoreMouseEvents(ignore);
+            overlayMouseIgnored.set(target, ignore);
+          }
+        }
+      }, 16);
+    }
+  }
+  function watchOverlayActivity(window) {
+    window.on('show', syncOverlayActivity);
+    window.on('hide', syncOverlayActivity);
+    window.on('closed', syncOverlayActivity);
+    syncOverlayActivity();
   }
   function applyOverlayLock(window, kind) {
     if (!window || window.isDestroyed()) return;
     const locked = overlayLocks[kind];
+    overlayMoves.delete(window);
     window.setMovable(!locked);
     window.setResizable(!locked);
     window.setIgnoreMouseEvents(locked);
     overlayMouseIgnored.set(window, locked);
     if (!window.webContents.isLoading()) window.webContents.send('overlay-lock-state', locked);
+    syncOverlayActivity();
   }
   function overlayKindFor(contents) {
     for (const [kind, window] of [['goal', overlay], ['timer', timerOverlay], ['event', eventOverlay], ['note', noteOverlay]]) if (window && !window.isDestroyed() && window.webContents === contents) return kind;
@@ -132,7 +180,8 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
   function enforceOverlayMinimum(window, width, height) {
     if (!window || window.isDestroyed()) return;
     const bounds = window.getBounds();
-    window.setMinimumSize(width, height);
+    const minimum = window.getMinimumSize();
+    if (minimum[0] !== width || minimum[1] !== height) window.setMinimumSize(width, height);
     const area = screen.getDisplayMatching(bounds).workArea;
     const nextWidth = Math.max(bounds.width, width), nextHeight = Math.max(bounds.height, height);
     const x = Math.min(Math.max(bounds.x, area.x), area.x + area.width - nextWidth);
@@ -157,6 +206,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     const visible = overlayPosition && screen.getAllDisplays().some(display => overlayPosition.x >= display.workArea.x && overlayPosition.y >= display.workArea.y && overlayPosition.x + width <= display.workArea.x + display.workArea.width && overlayPosition.y + height <= display.workArea.y + display.workArea.height);
     overlay = new BrowserWindow({ width, height, minWidth: minimumWidth, minHeight: minimumHeight, x: visible ? overlayPosition.x : area.x + area.width - width - 20, y: visible ? overlayPosition.y : area.y + 20, frame: false, transparent: true, resizable: true, movable: true, focusable: false, skipTaskbar: true, show: false, alwaysOnTop: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
     overlay.setAlwaysOnTop(true, 'screen-saver');
+    watchOverlayActivity(overlay);
     applyOverlayLock(overlay, 'goal');
     const saveBounds = () => { overlayPosition = overlay.getBounds(); void fs.writeFile(overlayPositionFile, JSON.stringify(overlayPosition), 'utf8'); };
     overlay.on('move', saveBounds);
@@ -180,6 +230,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     const instance = new BrowserWindow({ width, height, minWidth: minimumWidth, minHeight: minimumHeight, x: visible ? saved.x : area.x + area.width - width - 20, y: visible ? saved.y : area.y + (isEvent ? 180 : 95), frame: false, transparent: true, resizable: true, movable: true, focusable: false, skipTaskbar: true, show: false, alwaysOnTop: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false } });
     if (isEvent) eventOverlay = instance; else timerOverlay = instance;
     instance.setAlwaysOnTop(true, 'screen-saver');
+    watchOverlayActivity(instance);
     applyOverlayLock(instance, isEvent ? 'event' : 'timer');
     const saveBounds = () => {
       if (isEvent) { eventOverlayPosition = instance.getBounds(); void fs.writeFile(eventOverlayPositionFile, JSON.stringify(eventOverlayPosition), 'utf8'); }
@@ -216,6 +267,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     const visible = saved && screen.getAllDisplays().some(display => saved.x >= display.workArea.x && saved.y >= display.workArea.y && saved.x + width <= display.workArea.x + display.workArea.width && saved.y + height <= display.workArea.y + display.workArea.height);
     noteOverlay = new BrowserWindow({ width, height, minWidth: minimumWidth, minHeight: minimumHeight, x: visible ? saved.x : area.x + area.width - width - 20, y: visible ? saved.y : area.y + 270, frame: false, transparent: true, resizable: true, movable: true, focusable: false, skipTaskbar: true, show: false, alwaysOnTop: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
     noteOverlay.setAlwaysOnTop(true, 'screen-saver');
+    watchOverlayActivity(noteOverlay);
     applyOverlayLock(noteOverlay, 'note');
     const saveBounds = () => { noteOverlayPosition = noteOverlay.getBounds(); void fs.writeFile(noteOverlayPositionFile, JSON.stringify(noteOverlayPosition), 'utf8'); };
     noteOverlay.on('move', saveBounds);
@@ -273,22 +325,6 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
   }
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
   app.whenReady().then(async () => {
-    // A locked overlay remains click-through except for its own visible lock button.
-    // Screen DIP polling also works while the transparent window receives no mouse events.
-    overlayHitTestTimer = setInterval(() => {
-      const cursor = screen.getCursorScreenPoint();
-      for (const [kind, target] of [['goal', overlay], ['timer', timerOverlay], ['event', eventOverlay], ['note', noteOverlay]]) {
-        if (!overlayLocks[kind] || !target || target.isDestroyed() || !target.isVisible()) continue;
-        const rect = overlayLockButtons.get(target), bounds = target.getBounds();
-        const overButton = rect && cursor.x >= bounds.x + rect.x && cursor.x < bounds.x + rect.x + rect.width && cursor.y >= bounds.y + rect.y && cursor.y < bounds.y + rect.y + rect.height;
-        const ignore = !overButton;
-        if (overlayMouseIgnored.get(target) !== ignore) {
-          target.setIgnoreMouseEvents(ignore);
-          overlayMouseIgnored.set(target, ignore);
-        }
-      }
-    }, 16);
-
     Menu.setApplicationMenu(null);
     goalFile = path.join(app.getPath('userData'), 'gather-goal.json');
     overlayPositionFile = path.join(app.getPath('userData'), 'goal-overlay-position.json');
@@ -328,6 +364,8 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
       const saved = JSON.parse(await fs.readFile(appSettingsFile, 'utf8'));
       for (const key of Object.keys(appSettings.colors)) if (/^#[0-9a-f]{6}$/i.test(saved.colors?.[key])) appSettings.colors[key] = saved.colors[key];
       if (typeof saved.overlayGameOnly === 'boolean') appSettings.overlayGameOnly = saved.overlayGameOnly;
+      if (typeof saved.overlaysVisible === 'boolean') appSettings.overlaysVisible = saved.overlaysVisible;
+      overlaysVisible = appSettings.overlaysVisible;
       if (Number.isInteger(saved.volume) && saved.volume >= 0 && saved.volume <= 100) appSettings.volume = saved.volume;
       for (const key of ['goalFontSize', 'timerFontSize', 'noteFontSize']) if (Number.isInteger(saved[key]) && saved[key] >= 75 && saved[key] <= 175) appSettings[key] = saved[key];
       if (Number.isInteger(saved.overlayOpacity) && saved.overlayOpacity >= 0 && saved.overlayOpacity <= 100) appSettings.overlayOpacity = saved.overlayOpacity;
@@ -357,7 +395,6 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     win.on('closed', () => app.quit());
-    startFocusWatcher();
     if (goals.length) createOverlay();
     syncTimerOverlays();
     if (goals.length) startCapture();
@@ -409,6 +446,20 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     ipcMain.on('overlay-content-min', (event, height) => {
       if (!noteOverlay || noteOverlay.webContents !== event.sender || !Number.isInteger(height)) return;
       enforceOverlayMinimum(noteOverlay, Math.min(800, Math.ceil(200 * appSettings.noteFontSize / 100)), Math.min(700, screen.getPrimaryDisplay().workArea.height - 20, Math.max(90, height)));
+    });
+    ipcMain.on('overlay-move', (event, phase) => {
+      const kind = overlayKindFor(event.sender);
+      if (!kind) return;
+      const target = BrowserWindow.fromWebContents(event.sender);
+      if (phase === 'end' || overlayLocks[kind] || !target.isVisible()) { overlayMoves.delete(target); return; }
+      const cursor = screen.getCursorScreenPoint();
+      if (phase === 'start') {
+        const bounds = target.getBounds();
+        overlayMoves.set(target, { x: bounds.x, y: bounds.y, cursorX: cursor.x, cursorY: cursor.y });
+      } else if (phase === 'move') {
+        const start = overlayMoves.get(target);
+        if (start) target.setPosition(Math.round(start.x + cursor.x - start.cursorX), Math.round(start.y + cursor.y - start.cursorY));
+      }
     });
     ipcMain.on('overlay-resize', (event, dimensions) => {
       const target = [overlay, timerOverlay, eventOverlay, noteOverlay].find(window => window && !window.isDestroyed() && window.webContents === event.sender);
@@ -486,14 +537,23 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
       return palette;
     });
     ipcMain.handle('settings-get', () => ({ ...appSettings, overlaysVisible }));
-    ipcMain.handle('settings-set', async (_event, next) => {
+    ipcMain.handle('settings-set', (event, patch) => {
+      if (event.sender !== win.webContents || !patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Invalid settings');
+      const next = { ...appSettings };
+      for (const key of ['volume', 'overlayShortcut', 'goalShortcut', 'goalFontSize', 'timerFontSize', 'noteFontSize', 'overlayOpacity', 'overlayGameOnly']) if (Object.hasOwn(patch, key)) next[key] = patch[key];
       if (!next || typeof next.overlayGameOnly !== 'boolean' || !Number.isInteger(next.volume) || next.volume < 0 || next.volume > 100 || !['goalFontSize', 'timerFontSize', 'noteFontSize'].every(key => Number.isInteger(next[key]) && next[key] >= 75 && next[key] <= 175) || !Number.isInteger(next.overlayOpacity) || next.overlayOpacity < 0 || next.overlayOpacity > 100 || !['overlayShortcut', 'goalShortcut'].every(key => typeof next[key] === 'string' && /^(?:(?:Control|Alt|Shift)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2]))$/.test(next[key]) && (next[key].includes('Control+') || next[key].includes('Alt+'))) || next.overlayShortcut === next.goalShortcut) throw new Error('Invalid settings');
       const previous = appSettings;
       if (next.overlayShortcut !== previous.overlayShortcut || next.goalShortcut !== previous.goalShortcut) {
         globalShortcut.unregister(previous.overlayShortcut); globalShortcut.unregister(previous.goalShortcut);
         if (!registerShortcuts(next)) { registerShortcuts(previous); throw new Error('Shortcut unavailable'); }
       }
-      saveAppSettings({ volume: next.volume, overlayShortcut: next.overlayShortcut, goalShortcut: next.goalShortcut, goalFontSize: next.goalFontSize, timerFontSize: next.timerFontSize, noteFontSize: next.noteFontSize, overlayOpacity: next.overlayOpacity, overlayGameOnly: next.overlayGameOnly, colors: appSettings.colors });
+      try { saveAppSettings(next); }
+      catch (error) {
+        if (next.overlayShortcut !== previous.overlayShortcut || next.goalShortcut !== previous.goalShortcut) {
+          globalShortcut.unregister(next.overlayShortcut); globalShortcut.unregister(next.goalShortcut); registerShortcuts(previous);
+        }
+        throw error;
+      }
       publishOverlayAppearance();
       applyOverlayVisibility(overlaysVisible);
       return { ...appSettings, overlaysVisible };

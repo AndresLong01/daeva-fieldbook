@@ -1,3 +1,11 @@
+param([int]$ParentProcessId = 0)
+
+$fieldbookParent = $null
+if ($ParentProcessId -gt 0) {
+    try { $fieldbookParent = [System.Diagnostics.Process]::GetProcessById($ParentProcessId) }
+    catch { exit }
+}
+
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -11,6 +19,7 @@ public static class FieldbookForegroundWindow {
 
 $lastState = ''
 while ($true) {
+    if ($fieldbookParent -and $fieldbookParent.HasExited) { break }
     $state = 'other'
     $foregroundWindow = [FieldbookForegroundWindow]::GetForegroundWindow()
     if ($foregroundWindow -ne [IntPtr]::Zero) {

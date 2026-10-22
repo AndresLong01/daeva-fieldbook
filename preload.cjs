@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('desktop', {
   noteOverlaySnapshot: snapshot => ipcRenderer.send('note-overlay-snapshot', snapshot),
   onNoteOverlaySnapshot: callback => ipcRenderer.on('note-overlay-snapshot', (_event, snapshot) => callback(snapshot)),
   overlayResize: dimensions => ipcRenderer.send('overlay-resize', dimensions),
+  overlayMove: phase => ipcRenderer.send('overlay-move', phase),
   overlayLockGet: () => ipcRenderer.invoke('overlay-lock-get'),
   overlayLockToggle: () => ipcRenderer.invoke('overlay-lock-toggle'),
   overlayLockButtonBounds: rect => ipcRenderer.send('overlay-lock-button-bounds', rect),

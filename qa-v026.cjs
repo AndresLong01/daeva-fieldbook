@@ -44,6 +44,7 @@ app.whenReady().then(async()=>{
   main.focus();
   await waitFor(()=>!timer.isVisible());
   assert.equal(timer.isVisible(),false,'Default focus-only setting hides overlays outside AION 2');
+  await waitFor(()=>focusProbe);
   focusProbe.stdout.write('game\n');
   await waitFor(()=>timer.isVisible());
   focusProbe.stdout.write('other\n');

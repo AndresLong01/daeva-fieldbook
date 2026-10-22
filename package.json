@@ -1,6 +1,6 @@
 {
   "name": "daeva-fieldbook",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "An independent AION 2 gathering, timer, and notes companion",
   "author": "Daeva Fieldbook",
   "private": true,
@@ -18,7 +18,7 @@
     "appId": "app.daeva.fieldbook",
     "productName": "Daeva Fieldbook",
     "directories": {
-      "output": "../../outputs/Daeva-Fieldbook-1.0.4"
+      "output": "../../outputs/Daeva-Fieldbook-1.0.5"
     },
     "files": [
       "main.cjs",
