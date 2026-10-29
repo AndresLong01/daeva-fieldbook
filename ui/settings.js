@@ -1,11 +1,12 @@
 'use strict';
-let fieldbookSettings={volume:70,overlayShortcut:'Control+Alt+O',goalShortcut:'Control+Alt+G',goalFontSize:100,timerFontSize:100,noteFontSize:100,overlayOpacity:93,overlaysVisible:true,overlayGameOnly:true};
+let fieldbookSettings={volume:70,alertIntervals:[60],overlayShortcut:'Control+Alt+O',goalShortcut:'Control+Alt+G',goalFontSize:100,timerFontSize:100,noteFontSize:100,overlayOpacity:93,overlaysVisible:true,overlayGameOnly:true};
 let settingsRevision=0;
 const appearanceControls=[['goal-font-size','goalFontSize'],['timer-font-size','timerFontSize'],['note-font-size','noteFontSize'],['overlay-opacity','overlayOpacity']];
 function renderSettings(){
   document.getElementById('overlay-game-only').checked=fieldbookSettings.overlayGameOnly;
   document.getElementById('alert-volume').value=String(fieldbookSettings.volume);
   document.getElementById('volume-value').textContent=`${fieldbookSettings.volume}%`;
+  for(const input of document.querySelectorAll('[name="alert-interval"]'))input.checked=fieldbookSettings.alertIntervals.includes(Number(input.value));
   document.getElementById('overlay-shortcut').value=fieldbookSettings.overlayShortcut;
   document.getElementById('goal-shortcut').value=fieldbookSettings.goalShortcut;
   document.getElementById('overlay-visible').textContent=fieldbookSettings.overlaysVisible?'Hide overlays':'Show overlays';
@@ -33,6 +34,10 @@ if(window.desktop?.settingsGet){
   window.desktop.onAlertPlay(volume=>{void window.playFieldbookAlert(volume).catch(()=>{});});
 }
 document.getElementById('settings-tab').addEventListener('click',()=>{if(window.desktop?.settingsGet)loadSettings();});
+for(const input of document.querySelectorAll('[name="alert-interval"]'))input.addEventListener('change',()=>{
+  const alertIntervals=[...document.querySelectorAll('[name="alert-interval"]:checked')].map(checkbox=>Number(checkbox.value));
+  void saveSettings({alertIntervals},alertIntervals.length?'Alert times saved.':'Automatic timer alerts silenced.');
+});
 for(const [id,key] of [['alert-volume','volume'],...appearanceControls]){
   const input=document.getElementById(id);
   input.addEventListener('input',()=>{

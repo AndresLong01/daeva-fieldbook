@@ -48,7 +48,7 @@ app.whenReady().then(async()=>{
   await overlay.webContents.executeJavaScript(`moveHeader.setPointerCapture=()=>{};moveHeader.dispatchEvent(new PointerEvent('pointerdown',{pointerId:7,button:0,bubbles:true}));`);
   await overlay.webContents.executeJavaScript(`window.desktop.overlayLockGet()`);
   cursor={x:180,y:145};
-  await overlay.webContents.executeJavaScript(`moveHeader.dispatchEvent(new PointerEvent('pointermove',{pointerId:7,bubbles:true}));`);
+  await overlay.webContents.executeJavaScript(`moveHeader.dispatchEvent(new PointerEvent('pointermove',{pointerId:7,buttons:1,bubbles:true}));`);
   await waitFor(()=>overlay.getBounds().x===before.x+80&&overlay.getBounds().y===before.y+45);
   await overlay.webContents.executeJavaScript(`moveHeader.dispatchEvent(new PointerEvent('pointerup',{pointerId:7,bubbles:true}));`);
   await overlay.webContents.executeJavaScript(`window.desktop.overlayLockGet()`);

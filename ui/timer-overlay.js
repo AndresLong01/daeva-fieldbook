@@ -20,8 +20,8 @@ function render(){
     rows.delete(item.key);
     const [bell,name,status]=row.children,enabled=alertPins.includes(item.key);
     if(name.textContent!==item.name)name.textContent=item.name;
-    const label=`${enabled?'Disable':'Enable'} one-minute alert for ${item.name}`;
-    if(bell.getAttribute('aria-label')!==label){bell.setAttribute('aria-pressed',String(enabled));bell.setAttribute('aria-label',label);bell.title=enabled?'One-minute alert on':'Enable one-minute alert';}
+    const label=`${enabled?'Disable':'Enable'} alerts for ${item.name}`;
+    if(bell.getAttribute('aria-label')!==label){bell.setAttribute('aria-pressed',String(enabled));bell.setAttribute('aria-label',label);bell.title=enabled?'Alerts enabled · choose times in Settings':'Enable alerts · choose times in Settings';}
     let text,kind='';
     if(item.endAt>now){text=`OPEN ${countdownText(Math.ceil((item.endAt-now)/1000))}`;kind='open';}
     else if(item.dueAt>now)text=`${item.label.startsWith('≈')?'≈ ':''}${countdownText(Math.ceil((item.dueAt-now)/1000))}`;

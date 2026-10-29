@@ -66,7 +66,7 @@ if (!ownsInstance) { app.quit(); } else {
   let separateEvents = false;
   let alertPins = [];
   let appSettingsFile;
-  let appSettings = { volume: 70, overlayShortcut: 'Control+Alt+O', goalShortcut: 'Control+Alt+G', goalFontSize: 100, timerFontSize: 100, noteFontSize: 100, overlayOpacity: 93, overlayGameOnly: true, overlaysVisible: true, colors: { background: '#15191d', text: '#e8e7df', accent: '#b8d99b', border: '#465056' } };
+  let appSettings = { volume: 70, alertIntervals: [60], overlayShortcut: 'Control+Alt+O', goalShortcut: 'Control+Alt+G', goalFontSize: 100, timerFontSize: 100, noteFontSize: 100, overlayOpacity: 93, overlayGameOnly: true, overlaysVisible: true, colors: { background: '#15191d', text: '#e8e7df', accent: '#b8d99b', border: '#465056' } };
   function saveAppSettings(next) {
     // This small file is committed before another settings IPC or window close can run.
     // Replace it atomically so an interrupted write leaves the last good settings intact.
@@ -133,23 +133,43 @@ if (!ownsInstance) { app.quit(); } else {
     if (!needsHitTest) { clearInterval(overlayHitTestTimer); overlayHitTestTimer = null; }
     else if (!overlayHitTestTimer) {
       overlayHitTestTimer = setInterval(() => {
-        const cursor = screen.getCursorScreenPoint();
         for (const [kind, target] of [['goal', overlay], ['timer', timerOverlay], ['event', eventOverlay], ['note', noteOverlay]]) {
           if (!overlayLocks[kind] || !target || target.isDestroyed() || !target.isVisible()) continue;
-          const rect = overlayLockButtons.get(target), bounds = target.getBounds();
-          const overButton = rect && cursor.x >= bounds.x + rect.x && cursor.x < bounds.x + rect.x + rect.width && cursor.y >= bounds.y + rect.y && cursor.y < bounds.y + rect.y + rect.height;
-          const ignore = !overButton;
-          if (overlayMouseIgnored.get(target) !== ignore) {
-            target.setIgnoreMouseEvents(ignore);
-            overlayMouseIgnored.set(target, ignore);
-          }
+          syncOverlayMouse(target, kind);
         }
       }, 16);
     }
   }
+  function syncOverlayMouse(window, kind, force = false) {
+    if (!window || window.isDestroyed()) return;
+    const rect = overlayLockButtons.get(window);
+    let ignore = false;
+    // Never make the whole window click-through before its unlock control is known.
+    if (overlayLocks[kind] && rect) {
+      const bounds = window.getContentBounds(), cursor = screen.getCursorScreenPoint();
+      const zoom = window.webContents.getZoomFactor();
+      const overButton = cursor.x >= bounds.x + rect.x * zoom - 4 && cursor.x < bounds.x + (rect.x + rect.width) * zoom + 4 && cursor.y >= bounds.y + rect.y * zoom - 4 && cursor.y < bounds.y + (rect.y + rect.height) * zoom + 4;
+      ignore = !overButton;
+    }
+    if (force || overlayMouseIgnored.get(window) !== ignore) {
+      // Forward movement so entering the unlock control can recover input even
+      // if the native click-through state changed during a hide/show or resize.
+      window.setIgnoreMouseEvents(ignore, { forward: true });
+      overlayMouseIgnored.set(window, ignore);
+    }
+  }
   function watchOverlayActivity(window) {
-    window.on('show', syncOverlayActivity);
-    window.on('hide', syncOverlayActivity);
+    window.on('show', () => {
+      syncOverlayMouse(window, overlayKindFor(window.webContents), true);
+      syncOverlayActivity();
+    });
+    window.on('hide', () => { overlayMoves.delete(window); syncOverlayActivity(); });
+    window.webContents.on('did-start-loading', () => {
+      overlayLockButtons.delete(window);
+      overlayMoves.delete(window);
+      syncOverlayMouse(window, overlayKindFor(window.webContents), true);
+    });
+    window.on('resize', () => syncOverlayMouse(window, overlayKindFor(window.webContents), true));
     window.on('closed', syncOverlayActivity);
     syncOverlayActivity();
   }
@@ -159,8 +179,7 @@ if (!ownsInstance) { app.quit(); } else {
     overlayMoves.delete(window);
     window.setMovable(!locked);
     window.setResizable(!locked);
-    window.setIgnoreMouseEvents(locked);
-    overlayMouseIgnored.set(window, locked);
+    syncOverlayMouse(window, kind, true);
     if (!window.webContents.isLoading()) window.webContents.send('overlay-lock-state', locked);
     syncOverlayActivity();
   }
@@ -358,7 +377,7 @@ if (!ownsInstance) { app.quit(); } else {
     try {
       const settings = JSON.parse(await fs.readFile(timerSettingsFile, 'utf8'));
       separateEvents = settings.separateEvents === true;
-      if (Array.isArray(settings.alertPins)) alertPins = settings.alertPins.filter(pin => typeof pin === 'string' && /^(?:boss:(?:Verteron|Altgard):[a-z0-9-]{1,100}|event:(?:shugo|invasion|rift)|abyss:(?:siege|watcher|nahma|argo|kaira|tamasa))$/.test(pin));
+      if (Array.isArray(settings.alertPins)) alertPins = settings.alertPins.filter(pin => typeof pin === 'string' && /^(?:boss:(?:Verteron|Altgard):[a-z0-9-]{1,100}|event:(?:shugo|invasion|rift|battlefield)|abyss:(?:siege|watcher|nahma|argo|kaira|tamasa))$/.test(pin));
     } catch { /* Keep timers together by default. */ }
     try {
       const saved = JSON.parse(await fs.readFile(appSettingsFile, 'utf8'));
@@ -367,13 +386,14 @@ if (!ownsInstance) { app.quit(); } else {
       if (typeof saved.overlaysVisible === 'boolean') appSettings.overlaysVisible = saved.overlaysVisible;
       overlaysVisible = appSettings.overlaysVisible;
       if (Number.isInteger(saved.volume) && saved.volume >= 0 && saved.volume <= 100) appSettings.volume = saved.volume;
+      if (Array.isArray(saved.alertIntervals) && saved.alertIntervals.length <= 4 && saved.alertIntervals.every(seconds => [300, 180, 60, 30].includes(seconds))) appSettings.alertIntervals = [300, 180, 60, 30].filter(seconds => saved.alertIntervals.includes(seconds));
       for (const key of ['goalFontSize', 'timerFontSize', 'noteFontSize']) if (Number.isInteger(saved[key]) && saved[key] >= 75 && saved[key] <= 175) appSettings[key] = saved[key];
       if (Number.isInteger(saved.overlayOpacity) && saved.overlayOpacity >= 0 && saved.overlayOpacity <= 100) appSettings.overlayOpacity = saved.overlayOpacity;
       for (const key of ['overlayShortcut', 'goalShortcut']) if (typeof saved[key] === 'string' && /^(?:(?:Control|Alt|Shift)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2]))$/.test(saved[key])) appSettings[key] = saved[key];
     } catch { /* Use default preferences. */ }
     try {
       const savedPins = JSON.parse(await fs.readFile(timerPinsFile, 'utf8'));
-      if (Array.isArray(savedPins)) timerPins = [...new Set(savedPins.filter(pin => typeof pin === 'string' && /^(?:boss:(?:Verteron|Altgard):[a-z0-9-]{1,100}|event:(?:shugo|invasion|rift)|abyss:(?:siege|watcher|nahma|argo|kaira|tamasa))$/.test(pin)))].slice(0, 57);
+      if (Array.isArray(savedPins)) timerPins = [...new Set(savedPins.filter(pin => typeof pin === 'string' && /^(?:boss:(?:Verteron|Altgard):[a-z0-9-]{1,100}|event:(?:shugo|invasion|rift|battlefield)|abyss:(?:siege|watcher|nahma|argo|kaira|tamasa))$/.test(pin)))].slice(0, 58);
     } catch { /* No pinned timers yet. */ }
     try {
       const saved = JSON.parse(await fs.readFile(goalFile, 'utf8'));
@@ -413,7 +433,7 @@ if (!ownsInstance) { app.quit(); } else {
       return separateEvents;
     });
     ipcMain.handle('timer-pins-set', async (_event, next) => {
-      if (!Array.isArray(next) || next.length > 57 || next.some(pin => typeof pin !== 'string' || !/^(?:boss:(?:Verteron|Altgard):[a-z0-9-]{1,100}|event:(?:shugo|invasion|rift)|abyss:(?:siege|watcher|nahma|argo|kaira|tamasa))$/.test(pin))) throw new Error('Invalid timer pins');
+      if (!Array.isArray(next) || next.length > 58 || next.some(pin => typeof pin !== 'string' || !/^(?:boss:(?:Verteron|Altgard):[a-z0-9-]{1,100}|event:(?:shugo|invasion|rift|battlefield)|abyss:(?:siege|watcher|nahma|argo|kaira|tamasa))$/.test(pin))) throw new Error('Invalid timer pins');
       timerPins = [...new Set(next)];
       alertPins = alertPins.filter(pin => timerPins.includes(pin));
       await fs.writeFile(timerPinsFile, JSON.stringify(timerPins), 'utf8');
@@ -432,7 +452,7 @@ if (!ownsInstance) { app.quit(); } else {
     });
     ipcMain.on('timer-overlay-snapshot', (event, snapshot) => {
       if (event.sender !== win.webContents || !Array.isArray(snapshot)) return;
-      timerSnapshot = snapshot.filter(item => item && timerPins.includes(item.key) && typeof item.name === 'string' && item.name.length <= 100 && typeof item.label === 'string' && item.label.length <= 80 && Number.isFinite(item.dueAt) && Number.isFinite(item.endAt)).slice(0, 57);
+      timerSnapshot = snapshot.filter(item => item && timerPins.includes(item.key) && typeof item.name === 'string' && item.name.length <= 100 && typeof item.label === 'string' && item.label.length <= 80 && Number.isFinite(item.dueAt) && Number.isFinite(item.endAt)).slice(0, 58);
       syncTimerOverlays();
     });
     ipcMain.on('note-overlay-snapshot', (event, snapshot) => {
@@ -488,7 +508,13 @@ if (!ownsInstance) { app.quit(); } else {
     ipcMain.on('overlay-lock-button-bounds', (event, rect) => {
       const kind = overlayKindFor(event.sender);
       if (!kind || !rect || !['x', 'y', 'width', 'height'].every(key => Number.isFinite(rect[key])) || rect.width < 1 || rect.width > 64 || rect.height < 1 || rect.height > 64) return;
-      overlayLockButtons.set(BrowserWindow.fromWebContents(event.sender), rect);
+      const target = BrowserWindow.fromWebContents(event.sender);
+      overlayLockButtons.set(target, rect);
+      syncOverlayMouse(target, kind, true);
+    });
+    ipcMain.on('overlay-input-refresh', event => {
+      const kind = overlayKindFor(event.sender);
+      if (kind) syncOverlayMouse(BrowserWindow.fromWebContents(event.sender), kind, true);
     });
     ipcMain.handle('overlay-lock-clear', async event => {
       if (event.sender !== win.webContents) throw new Error('Invalid settings action');
@@ -540,9 +566,11 @@ if (!ownsInstance) { app.quit(); } else {
     ipcMain.handle('settings-set', (event, patch) => {
       if (event.sender !== win.webContents || !patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Invalid settings');
       const next = { ...appSettings };
-      for (const key of ['volume', 'overlayShortcut', 'goalShortcut', 'goalFontSize', 'timerFontSize', 'noteFontSize', 'overlayOpacity', 'overlayGameOnly']) if (Object.hasOwn(patch, key)) next[key] = patch[key];
+      for (const key of ['volume', 'alertIntervals', 'overlayShortcut', 'goalShortcut', 'goalFontSize', 'timerFontSize', 'noteFontSize', 'overlayOpacity', 'overlayGameOnly']) if (Object.hasOwn(patch, key)) next[key] = patch[key];
       if (!next || typeof next.overlayGameOnly !== 'boolean' || !Number.isInteger(next.volume) || next.volume < 0 || next.volume > 100 || !['goalFontSize', 'timerFontSize', 'noteFontSize'].every(key => Number.isInteger(next[key]) && next[key] >= 75 && next[key] <= 175) || !Number.isInteger(next.overlayOpacity) || next.overlayOpacity < 0 || next.overlayOpacity > 100 || !['overlayShortcut', 'goalShortcut'].every(key => typeof next[key] === 'string' && /^(?:(?:Control|Alt|Shift)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2]))$/.test(next[key]) && (next[key].includes('Control+') || next[key].includes('Alt+'))) || next.overlayShortcut === next.goalShortcut) throw new Error('Invalid settings');
       const previous = appSettings;
+      if (!Array.isArray(next.alertIntervals) || next.alertIntervals.length > 4 || next.alertIntervals.some(seconds => ![300, 180, 60, 30].includes(seconds))) throw new Error('Invalid alert intervals');
+      next.alertIntervals = [300, 180, 60, 30].filter(seconds => next.alertIntervals.includes(seconds));
       if (next.overlayShortcut !== previous.overlayShortcut || next.goalShortcut !== previous.goalShortcut) {
         globalShortcut.unregister(previous.overlayShortcut); globalShortcut.unregister(previous.goalShortcut);
         if (!registerShortcuts(next)) { registerShortcuts(previous); throw new Error('Shortcut unavailable'); }
@@ -564,11 +592,18 @@ if (!ownsInstance) { app.quit(); } else {
     setInterval(() => {
       const now = Date.now();
       for (const item of timerSnapshot) {
-        if (!alertPins.includes(item.key) || item.dueAt <= now || item.dueAt - now > 60000) continue;
-        if (alerted.has(item.key) && Math.abs(alerted.get(item.key) - item.dueAt) < 120000) continue;
-        alerted.set(item.key, item.dueAt);
+        if (!alertPins.includes(item.key) || item.dueAt <= now) continue;
         const target = !item.key.startsWith('boss:') && separateEvents ? eventOverlay : timerOverlay;
-        if (target && !target.isDestroyed()) target.webContents.send('alert-play', appSettings.volume);
+        if (!target || target.isDestroyed()) continue;
+        let history = alerted.get(item.key);
+        if (!history || Math.abs(history.dueAt - item.dueAt) >= 120000) history = { dueAt: item.dueAt, intervals: new Set() };
+        const reached = appSettings.alertIntervals.filter(seconds => item.dueAt - now <= seconds * 1000 && !history.intervals.has(seconds));
+        if (!reached.length) continue;
+        for (const seconds of reached) history.intervals.add(seconds);
+        alerted.set(item.key, history);
+        // Coalesce missed thresholds after starting late or waking from sleep.
+        // Each later selected threshold still gets its own alert for this event.
+        target.webContents.send('alert-play', appSettings.volume);
       }
     }, 1000);
     ipcMain.handle('update-get', event => {

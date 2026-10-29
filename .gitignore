@@ -27,5 +27,11 @@ qa*.cjs
 !qa-settings-persistence.cjs
 !qa-instance-lifecycle.cjs
 !qa-background-interactions.cjs
+!qa-event-schedules.cjs
+!qa-background-battlefield.cjs
+!qa-alert-scheduling.cjs
+!qa-background-alert-settings.cjs
+!qa-overlay-hit-test.cjs
+!qa-background-overlay-input.cjs
 preview.cjs
 build-icon.py
