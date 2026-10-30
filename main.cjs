@@ -50,6 +50,7 @@ if (!ownsInstance) { app.quit(); } else {
   let eventOverlay;
   let noteOverlay;
   let goals = [];
+  const goalCompletionTimers = new Map();
   let selectedGoalId = null;
   let goalFile;
   let overlayPositionFile;
@@ -66,7 +67,7 @@ if (!ownsInstance) { app.quit(); } else {
   let separateEvents = false;
   let alertPins = [];
   let appSettingsFile;
-  let appSettings = { volume: 70, alertIntervals: [60], overlayShortcut: 'Control+Alt+O', goalShortcut: 'Control+Alt+G', goalFontSize: 100, timerFontSize: 100, noteFontSize: 100, overlayOpacity: 93, overlayGameOnly: true, overlaysVisible: true, colors: { background: '#15191d', text: '#e8e7df', accent: '#b8d99b', border: '#465056' } };
+  let appSettings = { volume: 70, alertIntervals: [60], overlayShortcut: 'Control+Alt+O', goalFontSize: 100, timerFontSize: 100, noteFontSize: 100, overlayOpacity: 93, overlayGameOnly: true, overlaysVisible: true, colors: { background: '#15191d', text: '#e8e7df', accent: '#b8d99b', border: '#465056' } };
   function saveAppSettings(next) {
     // This small file is committed before another settings IPC or window close can run.
     // Replace it atomically so an interrupted write leaves the last good settings intact.
@@ -188,10 +189,7 @@ if (!ownsInstance) { app.quit(); } else {
     return null;
   }
   function registerShortcuts(settings) {
-    const toggle = globalShortcut.register(settings.overlayShortcut, () => applyOverlayVisibility(!overlaysVisible));
-    const increment = toggle && globalShortcut.register(settings.goalShortcut, () => { if (selectedGoalId) void adjustGoal(selectedGoalId, 1); });
-    if (!toggle || !increment) { globalShortcut.unregister(settings.overlayShortcut); globalShortcut.unregister(settings.goalShortcut); return false; }
-    return true;
+    return globalShortcut.register(settings.overlayShortcut, () => applyOverlayVisibility(!overlaysVisible));
   }
   function overlayAppearanceFor(contents) {
     return { fontSize: contents === overlay?.webContents ? appSettings.goalFontSize : contents === noteOverlay?.webContents ? appSettings.noteFontSize : appSettings.timerFontSize, opacity: appSettings.overlayOpacity };
@@ -234,7 +232,7 @@ if (!ownsInstance) { app.quit(); } else {
     overlay.webContents.on('will-navigate', event => event.preventDefault());
     overlay.loadFile(path.join(__dirname, 'ui/goal-overlay.html'));
     overlay.once('ready-to-show', () => { if (overlaysVisible && (gameFocused || !appSettings.overlayGameOnly)) overlay.showInactive(); });
-    overlay.webContents.on('did-finish-load', () => { overlay.webContents.send('goal-state', goals); overlay.webContents.send('overlay-lock-state', overlayLocks.goal); });
+    overlay.webContents.on('did-finish-load', () => { publishGoals(); overlay?.webContents.send('overlay-lock-state', overlayLocks.goal); });
   }
   function createTimerOverlay(kind) {
     const isEvent = kind === 'event';
@@ -298,7 +296,29 @@ if (!ownsInstance) { app.quit(); } else {
     noteOverlay.webContents.on('did-finish-load', () => { noteOverlay.webContents.send('note-overlay-snapshot', noteSnapshot); noteOverlay.webContents.send('overlay-lock-state', overlayLocks.note); });
   }
   function publishGoals() {
+    for (const [itemId, completion] of goalCompletionTimers) {
+      if (!goals.some(goal => goal.itemId === itemId && goal.current >= goal.target && goal.target === completion.target)) {
+        clearTimeout(completion.timer);
+        goalCompletionTimers.delete(itemId);
+      }
+    }
+    for (const goal of goals) if (goal.current >= goal.target && !goalCompletionTimers.has(goal.itemId)) {
+      const timer = setTimeout(() => {
+        goalCompletionTimers.delete(goal.itemId);
+        const current = goals.find(item => item.itemId === goal.itemId);
+        if (!current || current.current < current.target || current.target !== goal.target) return;
+        const remaining = goals.filter(item => item.itemId !== goal.itemId);
+        try { writeFileSync(goalFile, JSON.stringify(remaining), 'utf8'); }
+        catch (error) { console.error('Could not save completed gathering goal', error); return; }
+        goals = remaining;
+        if (!goals.some(item => item.itemId === selectedGoalId)) selectedGoalId = goals[0]?.itemId || null;
+        publishGoals();
+        if (!goals.length) stopCapture();
+      }, 3200);
+      goalCompletionTimers.set(goal.itemId, { timer, target: goal.target });
+    }
     win.webContents.send('goal-state', goals);
+    if (!goals.length && overlay) { overlay.close(); overlay = null; }
     if (overlay && !overlay.webContents.isLoading()) overlay.webContents.send('goal-state', goals);
     enforceOverlayMinimum(overlay, Math.min(600, Math.ceil(190 * appSettings.goalFontSize / 100)), Math.min(700, screen.getPrimaryDisplay().workArea.height - 20, Math.ceil((36 + goals.length * 34) * appSettings.goalFontSize / 100)));
   }
@@ -389,7 +409,7 @@ if (!ownsInstance) { app.quit(); } else {
       if (Array.isArray(saved.alertIntervals) && saved.alertIntervals.length <= 4 && saved.alertIntervals.every(seconds => [300, 180, 60, 30].includes(seconds))) appSettings.alertIntervals = [300, 180, 60, 30].filter(seconds => saved.alertIntervals.includes(seconds));
       for (const key of ['goalFontSize', 'timerFontSize', 'noteFontSize']) if (Number.isInteger(saved[key]) && saved[key] >= 75 && saved[key] <= 175) appSettings[key] = saved[key];
       if (Number.isInteger(saved.overlayOpacity) && saved.overlayOpacity >= 0 && saved.overlayOpacity <= 100) appSettings.overlayOpacity = saved.overlayOpacity;
-      for (const key of ['overlayShortcut', 'goalShortcut']) if (typeof saved[key] === 'string' && /^(?:(?:Control|Alt|Shift)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2]))$/.test(saved[key])) appSettings[key] = saved[key];
+      for (const key of ['overlayShortcut']) if (typeof saved[key] === 'string' && /^(?:(?:Control|Alt|Shift)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2]))$/.test(saved[key])) appSettings[key] = saved[key];
     } catch { /* Use default preferences. */ }
     try {
       const savedPins = JSON.parse(await fs.readFile(timerPinsFile, 'utf8'));
@@ -566,19 +586,19 @@ if (!ownsInstance) { app.quit(); } else {
     ipcMain.handle('settings-set', (event, patch) => {
       if (event.sender !== win.webContents || !patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Invalid settings');
       const next = { ...appSettings };
-      for (const key of ['volume', 'alertIntervals', 'overlayShortcut', 'goalShortcut', 'goalFontSize', 'timerFontSize', 'noteFontSize', 'overlayOpacity', 'overlayGameOnly']) if (Object.hasOwn(patch, key)) next[key] = patch[key];
-      if (!next || typeof next.overlayGameOnly !== 'boolean' || !Number.isInteger(next.volume) || next.volume < 0 || next.volume > 100 || !['goalFontSize', 'timerFontSize', 'noteFontSize'].every(key => Number.isInteger(next[key]) && next[key] >= 75 && next[key] <= 175) || !Number.isInteger(next.overlayOpacity) || next.overlayOpacity < 0 || next.overlayOpacity > 100 || !['overlayShortcut', 'goalShortcut'].every(key => typeof next[key] === 'string' && /^(?:(?:Control|Alt|Shift)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2]))$/.test(next[key]) && (next[key].includes('Control+') || next[key].includes('Alt+'))) || next.overlayShortcut === next.goalShortcut) throw new Error('Invalid settings');
+      for (const key of ['volume', 'alertIntervals', 'overlayShortcut', 'goalFontSize', 'timerFontSize', 'noteFontSize', 'overlayOpacity', 'overlayGameOnly']) if (Object.hasOwn(patch, key)) next[key] = patch[key];
+      if (!next || typeof next.overlayGameOnly !== 'boolean' || !Number.isInteger(next.volume) || next.volume < 0 || next.volume > 100 || !['goalFontSize', 'timerFontSize', 'noteFontSize'].every(key => Number.isInteger(next[key]) && next[key] >= 75 && next[key] <= 175) || !Number.isInteger(next.overlayOpacity) || next.overlayOpacity < 0 || next.overlayOpacity > 100 || !['overlayShortcut'].every(key => typeof next[key] === 'string' && /^(?:(?:Control|Alt|Shift)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2]))$/.test(next[key]) && (next[key].includes('Control+') || next[key].includes('Alt+')))) throw new Error('Invalid settings');
       const previous = appSettings;
       if (!Array.isArray(next.alertIntervals) || next.alertIntervals.length > 4 || next.alertIntervals.some(seconds => ![300, 180, 60, 30].includes(seconds))) throw new Error('Invalid alert intervals');
       next.alertIntervals = [300, 180, 60, 30].filter(seconds => next.alertIntervals.includes(seconds));
-      if (next.overlayShortcut !== previous.overlayShortcut || next.goalShortcut !== previous.goalShortcut) {
-        globalShortcut.unregister(previous.overlayShortcut); globalShortcut.unregister(previous.goalShortcut);
+      if (next.overlayShortcut !== previous.overlayShortcut) {
+        globalShortcut.unregister(previous.overlayShortcut);
         if (!registerShortcuts(next)) { registerShortcuts(previous); throw new Error('Shortcut unavailable'); }
       }
       try { saveAppSettings(next); }
       catch (error) {
-        if (next.overlayShortcut !== previous.overlayShortcut || next.goalShortcut !== previous.goalShortcut) {
-          globalShortcut.unregister(next.overlayShortcut); globalShortcut.unregister(next.goalShortcut); registerShortcuts(previous);
+        if (next.overlayShortcut !== previous.overlayShortcut) {
+          globalShortcut.unregister(next.overlayShortcut); registerShortcuts(previous);
         }
         throw error;
       }

@@ -7,7 +7,7 @@ function renderAbyss() {
   $('abyss-server-clock').textContent=serverDate.toISOString().slice(11,19);
   const sign=offset<0?'-':'+';
   $('abyss-clock-zone').textContent=`UTC${sign}${Math.floor(Math.abs(offset)/60)}${Math.abs(offset)%60?':'+String(Math.abs(offset)%60).padStart(2,'0'):''}${offset===540?' default':' synced'}`;
-  const rows=abyssEvents.map(event=>({event,dueAt:nextAbyssStart(event,now)})).sort((a,b)=>a.dueAt-b.dueAt||a.event.name.localeCompare(b.event.name));
+  const rows=abyssEvents.map(event=>({event,name:event.name,dueAt:nextAbyssStart(event,now)})).sort(compareTimerStarts);
   $('abyss-list').innerHTML=rows.map(({event,dueAt})=>{
     const left=Math.max(0,Math.ceil((dueAt-now)/1000));
     const countdown=left>=86400?`${Math.floor(left/86400)}d ${Math.floor(left%86400/3600)}h`:left>=3600?`${Math.floor(left/3600)}h ${String(Math.floor(left%3600/60)).padStart(2,'0')}m`:left>=60?`${Math.floor(left/60)}m ${String(left%60).padStart(2,'0')}s`:`${left}s`;

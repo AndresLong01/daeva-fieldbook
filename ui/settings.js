@@ -1,5 +1,5 @@
 'use strict';
-let fieldbookSettings={volume:70,alertIntervals:[60],overlayShortcut:'Control+Alt+O',goalShortcut:'Control+Alt+G',goalFontSize:100,timerFontSize:100,noteFontSize:100,overlayOpacity:93,overlaysVisible:true,overlayGameOnly:true};
+let fieldbookSettings={volume:70,alertIntervals:[60],overlayShortcut:'Control+Alt+O',goalFontSize:100,timerFontSize:100,noteFontSize:100,overlayOpacity:93,overlaysVisible:true,overlayGameOnly:true};
 let settingsRevision=0;
 const appearanceControls=[['goal-font-size','goalFontSize'],['timer-font-size','timerFontSize'],['note-font-size','noteFontSize'],['overlay-opacity','overlayOpacity']];
 function renderSettings(){
@@ -8,7 +8,6 @@ function renderSettings(){
   document.getElementById('volume-value').textContent=`${fieldbookSettings.volume}%`;
   for(const input of document.querySelectorAll('[name="alert-interval"]'))input.checked=fieldbookSettings.alertIntervals.includes(Number(input.value));
   document.getElementById('overlay-shortcut').value=fieldbookSettings.overlayShortcut;
-  document.getElementById('goal-shortcut').value=fieldbookSettings.goalShortcut;
   document.getElementById('overlay-visible').textContent=fieldbookSettings.overlaysVisible?'Hide overlays':'Show overlays';
   for(const [id,key] of appearanceControls){document.getElementById(id).value=String(fieldbookSettings[key]);document.getElementById(`${id}-value`).textContent=`${fieldbookSettings[key]}%`;}
 }
@@ -61,8 +60,8 @@ document.getElementById('unlock-overlays').addEventListener('click',async()=>{
   catch{document.getElementById('settings-status').textContent='Could not unlock overlays.';}
 });
 document.getElementById('test-alert').addEventListener('click',()=>{if(window.desktop?.alertTest)void window.desktop.alertTest();});
-for(const id of ['overlay-shortcut','goal-shortcut']){
-  const input=document.getElementById(id);
+{
+  const input=document.getElementById('overlay-shortcut');
   input.addEventListener('focus',()=>{input.value='Press shortcut…';});
   input.addEventListener('blur',renderSettings);
   input.addEventListener('keydown',async event=>{
@@ -71,7 +70,7 @@ for(const id of ['overlay-shortcut','goal-shortcut']){
     const key=event.code.startsWith('Key')?event.code.slice(3):event.code.startsWith('Digit')?event.code.slice(5):/^F(?:[1-9]|1[0-2])$/.test(event.key)?event.key:null;
     if(!key||!(event.ctrlKey||event.altKey))return;
     const accelerator=[event.ctrlKey?'Control':null,event.altKey?'Alt':null,event.shiftKey?'Shift':null,key].filter(Boolean).join('+');
-    if(await saveSettings({[id==='overlay-shortcut'?'overlayShortcut':'goalShortcut']:accelerator},'Shortcut saved.'))input.blur();
+    if(await saveSettings({overlayShortcut:accelerator},'Shortcut saved.'))input.blur();
     else document.getElementById('settings-status').textContent='Could not save shortcut. It may already be in use.';
   });
 }

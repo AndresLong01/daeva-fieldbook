@@ -10,7 +10,8 @@ function render(){
   const now=Date.now();
   const list=document.getElementById('timer-items');
   const rows=new Map([...list.children].map(row=>[row.dataset.key,row]));
-  pinnedSnapshot.forEach((item,index)=>{
+  const ordered=pinnedSnapshot.map(item=>({...item,active:item.endAt>now||(item.dueAt>0&&item.dueAt<=now)||item.label.includes('up')})).sort(compareTimerStarts);
+  ordered.forEach((item,index)=>{
     let row=rows.get(item.key);
     if(!row){
       row=document.createElement('div');row.className='timer-item';row.dataset.key=item.key;

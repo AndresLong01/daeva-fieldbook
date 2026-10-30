@@ -83,19 +83,30 @@ function bossStatus(boss) {
 }
 function renderBossList() {
   const region=$('boss-region').value,query=$('boss-search').value.trim().toLowerCase();
-  const shown=bosses.filter(b=>b.region===region&&b.name.toLowerCase().includes(query));
-  shown.sort((a,b)=>{
-    const at=bossStatus(a),bt=bossStatus(b);
-    const ar=at.kind==='up'?0:at.dueAt?1:at.kind==='dead'?2:3;
-    const br=bt.kind==='up'?0:bt.dueAt?1:bt.kind==='dead'?2:3;
-    return ar-br||(at.dueAt&&bt.dueAt?at.dueAt-bt.dueAt:0)||a.name.localeCompare(b.name);
-  });
+  const shown=bosses.filter(b=>b.region===region&&b.name.toLowerCase().includes(query)).map(boss=>{
+    const status=bossStatus(boss);
+    return {boss,status,name:boss.name,dueAt:status.dueAt,active:status.kind==='up'||status.kind==='due'};
+  }).sort(compareTimerStarts);
   $('boss-results-count').textContent=`${shown.length} boss${shown.length===1?'':'es'} · ${region}`;
-  $('boss-list').innerHTML=shown.length?shown.map(b=>{
-    const key=bossKey(b),status=bossStatus(b);
+  const list=$('boss-list'),rows=new Map([...list.querySelectorAll('.boss-entry')].map(row=>[row.querySelector('[data-boss-key]').dataset.bossKey,row]));
+  list.querySelector('.boss-empty')?.remove();
+  shown.forEach(({boss:b,status},index)=>{
+    const key=bossKey(b);
     const pinKey=`boss:${key}`,pinned=timerPins.includes(pinKey);
-    return `<div class="boss-entry"><button class="boss-row ${key===selectedBossKey?'selected':''}" data-boss-key="${escapeHTML(key)}" aria-pressed="${key===selectedBossKey}"><span class="boss-row-name">${escapeHTML(b.name)}</span><span class="boss-row-timer ${status.kind}" data-timer-key="${escapeHTML(key)}">${status.label}</span></button><button class="timer-pin" data-pin="${escapeHTML(pinKey)}" aria-label="${pinned?'Unpin':'Pin'} ${escapeHTML(b.name)} ${pinned?'from':'to'} game overlay" aria-pressed="${pinned}" title="${pinned?'Remove from':'Pin to'} game overlay"><span class="pin-glyph" aria-hidden="true"></span></button></div>`;
-  }).join(''):'<p class="boss-empty">No matching bosses.</p>';
+    let row=rows.get(key);
+    if(!row){
+      row=document.createElement('div');row.className='boss-entry';
+      row.innerHTML=`<button class="boss-row" data-boss-key="${escapeHTML(key)}"><span class="boss-row-name">${escapeHTML(b.name)}</span><span class="boss-row-timer" data-timer-key="${escapeHTML(key)}"></span></button><button class="timer-pin" data-pin="${escapeHTML(pinKey)}"><span class="pin-glyph" aria-hidden="true"></span></button>`;
+    }
+    rows.delete(key);
+    const [select,pin]=row.children,countdown=select.querySelector('[data-timer-key]');
+    select.classList.toggle('selected',key===selectedBossKey);select.setAttribute('aria-pressed',String(key===selectedBossKey));
+    countdown.textContent=status.label;countdown.className=`boss-row-timer ${status.kind}`;
+    pin.setAttribute('aria-pressed',String(pinned));pin.setAttribute('aria-label',`${pinned?'Unpin':'Pin'} ${b.name} ${pinned?'from':'to'} game overlay`);pin.title=pinned?'Remove from game overlay':'Pin to game overlay';
+    if(list.children[index]!==row)list.insertBefore(row,list.children[index]||null);
+  });
+  for(const row of rows.values())row.remove();
+  if(!shown.length)list.innerHTML='<p class="boss-empty">No matching bosses.</p>';
 }
 function renderTimerDetail() {
   const boss=bosses.find(b=>bossKey(b)===selectedBossKey);
@@ -122,13 +133,7 @@ function updateTimerCountdowns() {
     display.textContent=status.label;
     display.classList.toggle('open',status.kind==='open');
   }
-  for(const row of $('boss-list').querySelectorAll('[data-timer-key]')){
-    const boss=bosses.find(b=>bossKey(b)===row.dataset.timerKey),status=boss?bossStatus(boss):null;
-    if(!status)continue;
-    row.textContent=status.label;
-    row.classList.toggle('due',status.kind==='due');
-    row.classList.toggle('up',status.kind==='up');
-  }
+  renderBossList();
   renderTimerDetail();
   $('timer-count').textContent=bosses.filter(b=>b.region===$('boss-region').value&&bossStatus(b).kind==='up').length;
   if(!window.desktop?.bossFeed)$('timer-feed-status').textContent='Offline preview · no current reports';
