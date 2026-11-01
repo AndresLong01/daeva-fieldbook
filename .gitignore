@@ -36,5 +36,7 @@ qa*.cjs
 !qa-background-goal-completion.cjs
 !qa-background-timer-order.cjs
 !qa-background-pets.cjs
+!qa-server-clock.cjs
+!qa-background-server-clock.cjs
 preview.cjs
 build-icon.py

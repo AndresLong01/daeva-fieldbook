@@ -30,6 +30,9 @@ Downloading an update restarts the app automatically; checks alone never install
   candidate locations, not live spawn confirmations.
 - Boss reports use a community NA West Siel feed. Abyss and top-bar events use
   schedules; these are not live server spawn confirmations.
+- Rift, Battlefield, and automatic Abyss schedules follow NA West Pacific time,
+  including daylight saving changes. Abyss also offers an explicit custom fixed
+  clock mode for manual calibration; fixed clocks do not adjust seasonally.
 - Gathering goals support separate item variants and an optional passive local
   inventory detector. Npcap is required for automatic counting.
 - Goals, timers, and notes have resizable overlays, per-overlay lock controls,

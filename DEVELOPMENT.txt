@@ -6,8 +6,8 @@ tab makes a network request: read-only JSON from the community NA West Siel
 boss report feed. This app does not embed a website or external map.
 
 The top bar shows Shugo Festival (:00 hourly), Dimensional Invasion (:30
-hourly), and a Global-reported Spacetime Rift schedule (every three hours
-from 00:00 UTC). These are scheduled estimates, not live event state. Rift
+hourly), and a regional Spacetime Rift schedule (every three hours
+from 02:00 Pacific time). These are scheduled estimates, not live event state. Rift
 hours differ among community references; confirm the in-game map before
 traveling. Boss statuses use recent Siel player reports and can be missing or
 late. Each boss row and top-bar event has a pin button. Pins are stored as
@@ -76,8 +76,9 @@ Build with current Node.js on Windows:
 The x64 installer is written to ../../outputs/Daeva-Fieldbook-1.0.
 
 The Abyss tab uses fixed schedule values from Global client data and local
-time calculations. It has no live Abyss status API. Its initial server-clock
-offset is UTC+9; users can sync it to Siel's displayed in-game clock. The
+time calculations. It has no live Abyss status API. Its default server clock
+uses America/Los_Angeles and resolves each event in its own date's DST offset.
+Custom fixed clock sync remains available as an explicit manual mode. The
 map image and event coordinates are bundled and work offline.
 
 The --fieldbook-profile=<absolute-path> argument selects an isolated local

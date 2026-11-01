@@ -2,11 +2,14 @@
 let selectedAbyssId='siege',abyssScale=1,abyssX=0,abyssY=-80,abyssDrag=null;
 
 function renderAbyss() {
-  const now=Date.now(),offset=data.abyssClockOffset;
-  const serverDate=new Date(now+offset*60000);
+  const now=Date.now(),offset=data.abyssClockOffset,fixed=data.abyssClockMode==='fixed';
+  const serverDate=new Date(fixed?now+offset*60000:serverWallTime(now));
   $('abyss-server-clock').textContent=serverDate.toISOString().slice(11,19);
   const sign=offset<0?'-':'+';
-  $('abyss-clock-zone').textContent=`UTC${sign}${Math.floor(Math.abs(offset)/60)}${Math.abs(offset)%60?':'+String(Math.abs(offset)%60).padStart(2,'0'):''}${offset===540?' default':' synced'}`;
+  $('abyss-clock-zone').textContent=fixed?`UTC${sign}${Math.floor(Math.abs(offset)/60)}${Math.abs(offset)%60?':'+String(Math.abs(offset)%60).padStart(2,'0'):''} fixed`:`${serverClock.formatToParts(now).find(part=>part.type==='timeZoneName').value} · automatic`;
+  $('abyss-clock-mode').value=data.abyssClockMode;
+  $('abyss-clock-input').disabled=!fixed;
+  $('abyss-clock-sync').disabled=!fixed;
   const rows=abyssEvents.map(event=>({event,name:event.name,dueAt:nextAbyssStart(event,now)})).sort(compareTimerStarts);
   $('abyss-list').innerHTML=rows.map(({event,dueAt})=>{
     const left=Math.max(0,Math.ceil((dueAt-now)/1000));
@@ -52,7 +55,12 @@ $('abyss-map-markers').addEventListener('click',event=>{
   selectedAbyssId=marker.dataset.abyssId;
   renderAbyss();renderAbyssMap();
 });
+$('abyss-clock-mode').addEventListener('change',()=>{
+  data.abyssClockMode=$('abyss-clock-mode').value;
+  persist();renderAbyss();updateTimerCountdowns();
+});
 $('abyss-clock-sync').addEventListener('click',()=>{
+  if(data.abyssClockMode!=='fixed')return;
   const match=/^(\d\d):(\d\d)$/.exec($('abyss-clock-input').value);
   if(!match){notify('Enter the current in-game server time.');return;}
   const now=new Date();
@@ -60,7 +68,7 @@ $('abyss-clock-sync').addEventListener('click',()=>{
   if(offset < -720)offset+=1440;
   if(offset > 840)offset-=1440;
   data.abyssClockOffset=offset;
-  persist();renderAbyss();updateTimerCountdowns();notify('Abyss schedule synced to the clock you entered.');
+  persist();renderAbyss();updateTimerCountdowns();notify('Abyss clock synced. Fixed offsets do not follow daylight saving changes.');
 });
 $('abyss-map-reset').addEventListener('click',()=>{abyssScale=1;abyssX=0;abyssY=-80;updateAbyssMapTransform();});
 $('abyss-map').addEventListener('pointerdown',event=>{

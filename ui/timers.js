@@ -4,12 +4,11 @@ const bossKey=boss=>`${boss.region}:${boss.id}`;
 const scheduledEvents=[
   {id:'shugo',name:'Shugo Festival',cycle:3600000,phase:0,duration:180000},
   {id:'invasion',name:'Dimensional Invasion',cycle:3600000,phase:1800000,duration:180000},
-  {id:'rift',name:'Spacetime Rift',cycle:10800000,phase:0,duration:600000},
+  {id:'rift',name:'Spacetime Rift',hours:[2,5,8,11,14,17,20,23],duration:600000},
   // Reported regional schedule, not a live server feed. Checked 2026-10-21:
   // https://atlaschill.es/aion2/battlefield
   {id:'battlefield',name:'Battlefield',windows:[[11,14],[20,22]]}
 ];
-const battlefieldClock=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
 let timerPins=[];
 let selectedBossKey=bossKey(bosses.find(b=>b.name==='Eternal Gartua')||bosses[0]);
 let timerScale=1,timerX=0,timerY=-80,timerDrag=null;
@@ -20,24 +19,15 @@ function countdownText(seconds) {
   return hours?`${hours}h ${String(minutes).padStart(2,'0')}m`:minutes?`${minutes}m ${String(seconds%60).padStart(2,'0')}s`:`${seconds}s`;
 }
 function scheduledEventStatus(event,now=Date.now()) {
-  if(event.windows){
-    const local=Object.fromEntries(battlefieldClock.formatToParts(now).map(part=>[part.type,Number(part.value)]));
-    const midnight=Date.UTC(local.year,local.month-1,local.day);
+  if(event.windows||event.hours){
+    const local=new Date(serverWallTime(now));
+    const midnight=Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate());
     let dueAt=Infinity,endAt=0;
-    for(let day=0;day<3;day++)for(const [startHour,endHour] of event.windows){
-      const bounds=[];
-      for(const hour of [startHour,endHour]){
-        const wallTime=midnight+day*86400000+hour*3600000;
-        let instant=wallTime;
-        // Resolve each opening in Pacific time, including tomorrow's DST offset.
-        for(let pass=0;pass<2;pass++){
-          const parts=Object.fromEntries(battlefieldClock.formatToParts(instant).map(part=>[part.type,Number(part.value)]));
-          instant+=wallTime-Date.UTC(parts.year,parts.month-1,parts.day,parts.hour,parts.minute,parts.second);
-        }
-        bounds.push(instant);
-      }
-      if(bounds[0]<=now&&now<bounds[1])endAt=bounds[1];
-      if(bounds[0]>now)dueAt=Math.min(dueAt,bounds[0]);
+    for(let day=-1;day<3;day++)for(const [startHour,endHour] of event.windows||event.hours.map(hour=>[hour,null])){
+      const start=serverTimeToInstant(midnight+day*86400000+startHour*3600000);
+      const end=endHour===null?start+event.duration:serverTimeToInstant(midnight+day*86400000+endHour*3600000);
+      if(start<=now&&now<end)endAt=end;
+      if(start>now)dueAt=Math.min(dueAt,start);
     }
     if(endAt)return {label:`OPEN ${countdownText(Math.ceil((endAt-now)/1000))}`,kind:'open',dueAt,endAt};
     return {label:countdownText(Math.ceil((dueAt-now)/1000)),kind:'countdown',dueAt,endAt:0};

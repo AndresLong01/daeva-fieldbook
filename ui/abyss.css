@@ -10,6 +10,7 @@
 .abyss-clock label{font-size:9px;color:#a7b7a8;flex:1;min-width:130px}
 .abyss-clock input{display:block;width:100%;height:29px;margin-top:3px;padding:4px;background:#111b24;border:1px solid #3b4d47;border-radius:4px;color:#dfecdf;color-scheme:dark}
 .abyss-clock button{height:29px;padding:5px 11px;font-size:9px}
+.abyss-clock select{width:100%;min-width:0;font-size:10px}
 #abyss-list{flex:1;min-height:110px;overflow-y:auto;scrollbar-width:thin;padding-right:2px}
 .abyss-row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;background:#141d26;border:1px solid #25343d;border-radius:4px;padding:8px 9px;margin-bottom:4px;color:#d8e3dc}
 .abyss-row:hover{background:#1e2a2b;border-color:#46614b}

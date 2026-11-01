@@ -1,9 +1,10 @@
-# Daeva Fieldbook 1.0.8
+# Daeva Fieldbook 1.0.9
 
-- Added a Pet Locations tab with 637 known locations across Verteron and Altgard, using the bundled game maps offline.
-- Filter pets by All, Cogni, Fera, Natura, or Varian, search by name, and choose individual pets with checkboxes. Show all is selected by default.
-- Pet selections are saved separately for each map. The map supports pan, zoom, adjustable pointer size, teleport statues, and fitting the selected locations into view.
+- Fixed Spacetime Rift timers drifting after daylight saving changes. Rift now follows the NA West Pacific schedule instead of a fixed UTC schedule.
+- Abyss schedules now default to automatic NA West Pacific time, resolving each event with the daylight saving offset for its date. Old default and Pacific clock offsets migrate automatically.
+- Added an explicit custom fixed-clock mode for manual Abyss syncing. Other custom offsets are preserved; fixed clocks do not adjust seasonally.
+- Pinned overlays and alert deadlines use the same corrected event times as the app. Battlefield retains automatic Pacific time; hourly Shugo and Invasion schedules are unchanged.
 
-Pet markers show known reference locations, not live spawn availability.
+Verified spring and fall clock changes, future event dates, saved clock preferences, overlay deadlines, and timer ordering.
 
-Existing notes, active goals, timer pins, and other saved preferences are retained. Use Settings → Check for updates, then Download update beside the title to install this release.
+Existing notes, goals, pins, and appearance preferences are retained. Use Settings → Check for updates, then Download update beside the title.

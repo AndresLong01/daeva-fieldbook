@@ -2,6 +2,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const context=vm.createContext({fieldAtlas:{bosses:[{id:'gartua',region:'Verteron',name:'Eternal Gartua'}]}});
+vm.runInContext(fs.readFileSync(`${__dirname}/ui/server-clock.js`,'utf8'),context);
 vm.runInContext(fs.readFileSync(`${__dirname}/ui/timers.js`,'utf8').split('function renderPinButtons')[0],context);
 for(const [instant,kind,next,end] of [
   ['2026-10-21T17:59:00Z','countdown','2026-10-21T18:00:00Z',null],

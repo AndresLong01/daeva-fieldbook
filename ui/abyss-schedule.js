@@ -1,7 +1,11 @@
 'use strict';
 
-// Client schedule values are server-clock times. UTC+9 is the initial Global
-// reading; the player can calibrate that clock against Siel's in-game clock.
+// Migrate the old default and either Pacific offset to automatic NA West time.
+// Preserve other custom clock calibrations as an explicit fixed-offset mode.
+if(!['server','fixed'].includes(data.abyssClockMode)){
+  data.abyssClockMode=[540,-420,-480].includes(data.abyssClockOffset)?'server':'fixed';
+}
+// Client schedule values are server-clock times.
 const abyssEvents = [
   {id:'siege',name:'Artifact Siege',zone:'Chaotic Lower Reshanta',days:[1,4,6],hour:21,minute:0,schedule:'Mon, Thu, Sat · 21:00 server time'},
   {id:'watcher',name:'Watcher Kaira',zone:'Chaotic Lower Reshanta',cycleHours:3,hour:1,minute:0,schedule:'Every 3 hours from 01:00 server time'},
@@ -12,7 +16,8 @@ const abyssEvents = [
 ];
 
 function nextAbyssStart(event, now=Date.now()) {
-  const serverNow=now+data.abyssClockOffset*60000;
+  const fixed=data.abyssClockMode==='fixed';
+  const serverNow=fixed?now+data.abyssClockOffset*60000:serverWallTime(now);
   const today=new Date(serverNow);
   const midnight=Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate());
   for(let day=0;day<=7;day++){
@@ -20,7 +25,8 @@ function nextAbyssStart(event, now=Date.now()) {
     if(event.days&&!event.days.includes(new Date(date).getUTCDay()))continue;
     for(let hour=event.hour;hour<24;hour+=event.cycleHours||24){
       const candidate=date+(hour*60+event.minute)*60000;
-      if(candidate>=serverNow)return candidate-data.abyssClockOffset*60000;
+      const instant=fixed?candidate-data.abyssClockOffset*60000:serverTimeToInstant(candidate);
+      if(instant>=now)return instant;
     }
   }
   throw new Error('No scheduled Abyss start found');

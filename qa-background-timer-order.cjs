@@ -56,7 +56,7 @@ app.whenReady().then(async()=>{
   assert.equal(await main.webContents.executeJavaScript(`$('boss-list').querySelectorAll('[data-boss-key]').length`),1);
   await main.webContents.executeJavaScript(`$('boss-search').value='';window.qaStatuses[0]={kind:'unknown',label:'No report'};updateTimerCountdowns();`);
   assert.equal(await main.webContents.executeJavaScript(`$('boss-list').querySelectorAll('[data-boss-key]')[2].dataset.bossKey`),bossKeys[2],'Losing a known timer must move it below known countdowns');
-  await main.webContents.executeJavaScript(`window.qaRealNow=Date.now;Date.now=()=>Date.parse('2026-10-29T11:59:00Z');data.abyssClockOffset=540;renderAbyss();`);
+  await main.webContents.executeJavaScript(`window.qaRealNow=Date.now;Date.now=()=>Date.parse('2026-10-29T11:59:00Z');data.abyssClockMode='fixed';data.abyssClockOffset=540;renderAbyss();`);
   assert.deepEqual(await main.webContents.executeJavaScript(`[...$('abyss-list').querySelectorAll('[data-abyss-id]')].map(row=>row.dataset.abyssId)`),['siege','argo','kaira','tamasa','watcher','nahma']);
   await main.webContents.executeJavaScript(`Date.now=()=>Date.parse('2026-10-29T12:00:01Z');renderAbyss();`);
   assert.deepEqual(await main.webContents.executeJavaScript(`[...$('abyss-list').querySelectorAll('[data-abyss-id]')].map(row=>row.dataset.abyssId)`),['argo','kaira','tamasa','watcher','nahma','siege']);
