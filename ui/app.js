@@ -64,7 +64,7 @@ function persist() {
   }
 }
 function switchTab(tab) {
-  for(const name of ['gather','cubes','timers','abyss','notes','settings']) { $(name+'-panel').hidden=tab!==name;const btn=$(name+'-tab');btn.classList.toggle('active',tab===name); if(tab===name)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current'); }
+  for(const name of ['gather','cubes','pets','timers','abyss','notes','settings']) { $(name+'-panel').hidden=tab!==name;const btn=$(name+'-tab');btn.classList.toggle('active',tab===name); if(tab===name)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current'); }
 }
 function updateMapTransform() {
   $('map-world').setAttribute('transform',`translate(${mapX} ${mapY}) scale(${mapScale})`);

@@ -35,5 +35,6 @@ qa*.cjs
 !qa-background-overlay-input.cjs
 !qa-background-goal-completion.cjs
 !qa-background-timer-order.cjs
+!qa-background-pets.cjs
 preview.cjs
 build-icon.py

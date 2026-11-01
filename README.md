@@ -20,6 +20,10 @@ Downloading an update restarts the app automatically; checks alone never install
 - The selected map determines which gatherables and location counts are shown.
 - All, Plants, Minerals, Wood, Other, and Favorites tabs filter that map's list.
 - Maps and locations are bundled and work offline.
+- Pet Locations includes 637 known locations across Verteron and Altgard.
+  Filter by All, Cogni, Fera, Natura, or Varian and select individual pets with
+  checkboxes. Show all is selected by default; selections are saved per map.
+  These are reference locations, not live availability reports.
 - Hidden Cubes has 2,811 possible locations across Verteron and Altgard,
   with searchable subregion checkboxes, per-area counts, and an Only shortcut.
   Map choice and filters are saved separately from gathering. These are
